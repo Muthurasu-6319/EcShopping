@@ -34,7 +34,7 @@ export default function Header({ cartCount = 0 }) {
           </div>
           <div className="brand-text-group">
             <span className="brand-name">
-              Agri<span className="brand-highlight">Mart</span>
+              Ec<span className="brand-highlight">Shopping</span>
             </span>
             <span className="brand-tagline">Fresh • Pure • Community</span>
           </div>

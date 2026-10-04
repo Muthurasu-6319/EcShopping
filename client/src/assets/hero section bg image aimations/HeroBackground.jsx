@@ -1,10 +1,10 @@
-// HeroBackground.jsx - AgriMart hero section-க்கான உயிருள்ள background
+// HeroBackground.jsx - EcShopping hero section-க்கான உயிருள்ள background
 // Files (same folder): HeroBackground.jsx, hero-bg.webp
 // Use: hero section (position:relative) உள்ளே முதல் child ஆக <HeroBackground />, மற்ற content-க்கு position:relative; z-index:1
 import { useEffect, useRef, useState } from "react";
 import heroImg from "./hero-bg.webp";
 
-/* AgriMart hero: ஒரே படம் + realistic motion (WebGL shader). காற்றில் புல்/இலை, மேகம், ஒளிக்கதிர், மேக நிழல், மகரந்தத் துகள், பறவைகள், mouse parallax */
+/* EcShopping hero: ஒரே படம் + realistic motion (WebGL shader). காற்றில் புல்/இலை, மேகம், ஒளிக்கதிர், மேக நிழல், மகரந்தத் துகள், பறவைகள், mouse parallax */
 const HERO_FS = `
 #ifdef GL_FRAGMENT_PRECISION_HIGH
 precision highp float;

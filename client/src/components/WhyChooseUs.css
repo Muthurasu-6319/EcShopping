@@ -1,0 +1,246 @@
+/* WhyChooseUs.css */
+.why-choose-section {
+  padding: 80px 0;
+  background-color: #fafdfa;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+.why-choose-top {
+  margin-bottom: 60px;
+}
+
+.why-choose-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 40px;
+}
+
+.why-choose-titles {
+  max-width: 600px;
+}
+
+.subtitle {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #16a34a;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.why-choose-titles h2 {
+  font-size: 2.2rem;
+  color: #1a4d2e;
+  margin-bottom: 12px;
+  font-family: 'Playfair Display', serif;
+}
+
+.why-choose-titles p {
+  color: #666;
+  font-size: 1.1rem;
+}
+
+.view-sellers-btn {
+  background-color: #1a4d2e;
+  color: white;
+  padding: 12px 24px;
+  border-radius: 30px;
+  text-decoration: none;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+}
+
+.view-sellers-btn:hover {
+  background-color: #123620;
+  transform: translateY(-2px);
+}
+
+.why-choose-content {
+  display: flex;
+  align-items: stretch;
+  gap: 30px;
+}
+
+.why-choose-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  flex: 1;
+}
+
+.feature-card {
+  background-color: #f0fdf4;
+  border-radius: 16px;
+  padding: 30px 24px;
+  transition: transform 0.3s ease;
+  border: 1px solid rgba(22, 163, 74, 0.1);
+}
+
+.feature-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 30px rgba(22, 163, 74, 0.08);
+}
+
+.feature-icon-wrapper {
+  background-color: #dcfce7;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+  color: #16a34a;
+}
+
+.feature-card h3 {
+  color: #1a4d2e;
+  font-size: 1.2rem;
+  margin-bottom: 10px;
+  font-weight: 700;
+}
+
+.feature-card p {
+  color: #555;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.why-choose-image {
+  flex: 0 0 350px;
+  border-radius: 20px;
+  overflow: hidden;
+  position: relative;
+}
+
+.why-choose-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Vendor Banner */
+.vendor-banner {
+  display: flex;
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+}
+
+.vendor-banner-image {
+  flex: 0 0 35%;
+}
+
+.vendor-banner-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.vendor-banner-content {
+  flex: 1;
+  background-color: #113f24;
+  padding: 50px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: white;
+}
+
+.vendor-banner-text {
+  max-width: 400px;
+}
+
+.vendor-banner-icon {
+  font-size: 1.5rem;
+  margin-bottom: 10px;
+}
+
+.vendor-banner-text h2 {
+  font-size: 2rem;
+  margin-bottom: 15px;
+  font-family: 'Playfair Display', serif;
+}
+
+.vendor-banner-text p {
+  color: #d1fae5;
+  font-size: 1.05rem;
+  margin-bottom: 25px;
+  line-height: 1.5;
+}
+
+.become-vendor-btn {
+  background-color: #bbf7d0;
+  color: #113f24;
+  border: none;
+  padding: 14px 28px;
+  border-radius: 30px;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.become-vendor-btn:hover {
+  background-color: #86efac;
+  transform: scale(1.05);
+}
+
+.vendor-banner-checklist ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.vendor-banner-checklist li {
+  display: flex;
+  align-items: center;
+  margin-bottom: 15px;
+  font-size: 1.1rem;
+  color: #ecfdf5;
+}
+
+.vendor-banner-checklist li:last-child {
+  margin-bottom: 0;
+}
+
+.check-icon {
+  color: #4ade80;
+  margin-right: 12px;
+}
+
+@media (max-width: 1024px) {
+  .why-choose-content {
+    flex-direction: column;
+  }
+  .why-choose-image {
+    height: 300px;
+    flex: auto;
+  }
+  .vendor-banner {
+    flex-direction: column;
+  }
+  .vendor-banner-image {
+    height: 300px;
+  }
+  .vendor-banner-content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 30px;
+  }
+}
+
+@media (max-width: 768px) {
+  .why-choose-cards {
+    grid-template-columns: 1fr;
+  }
+  .why-choose-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 20px;
+  }
+}

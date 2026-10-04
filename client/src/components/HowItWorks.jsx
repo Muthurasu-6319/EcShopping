@@ -70,7 +70,7 @@ export default function HowItWorks() {
           <div className="how-phone-wrapper">
             <img 
               src={howItWorksPhone} 
-              alt="AgriMart How It Works" 
+              alt="EcShopping How It Works" 
               className="how-phone-img"
               loading="lazy" 
             />

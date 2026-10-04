@@ -5,6 +5,10 @@ import Categories from './components/Categories';
 import HowItWorks from './components/HowItWorks';
 import FeaturedProducts from './components/FeaturedProducts';
 import MeetSellers from './components/MeetSellers';
+import WhyChooseUs from './components/WhyChooseUs';
+import Testimonials from './components/Testimonials';
+import CTA from './components/CTA';
+import Footer from './components/Footer';
 import { ShoppingBag, CheckCircle } from 'lucide-react';
 import './App.css';
 
@@ -22,7 +26,7 @@ function App() {
 
   return (
     <div className="app-wrapper">
-      {/* 1. AgriMart Header */}
+      {/* 1. EcShopping Header */}
       <Header cartCount={cartCount} />
 
       <main>
@@ -40,7 +44,19 @@ function App() {
 
         {/* 6. Meet Our Sellers (4 Verified Local Sellers) */}
         <MeetSellers />
+
+        {/* 7. Why Choose Us & Vendor Banner */}
+        <WhyChooseUs />
+
+        {/* 8. Testimonials */}
+        <Testimonials />
+
+        {/* 9. Call to Action Banner */}
+        <CTA />
       </main>
+
+      {/* 10. Footer */}
+      <Footer />
 
       {/* Toast Notification when adding item to cart */}
       {toastMessage && (
