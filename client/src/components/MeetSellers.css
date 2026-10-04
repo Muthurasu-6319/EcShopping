@@ -1,0 +1,177 @@
+.meet-sellers-section {
+  padding: 70px 0 85px;
+  background-color: #fbfbfa;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.sellers-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+}
+
+.seller-card {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+
+.seller-card:hover {
+  transform: translateY(-6px);
+  border-color: #86efac;
+  box-shadow: 0 16px 32px rgba(22, 101, 52, 0.12);
+}
+
+.seller-banner-box {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background-color: #f1f5f9;
+  overflow: hidden;
+}
+
+.seller-banner-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s ease;
+}
+
+.seller-card:hover .seller-banner-img {
+  transform: scale(1.08);
+}
+
+.seller-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(4px);
+  color: #166534;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid rgba(22, 101, 52, 0.15);
+}
+
+.verified-check {
+  color: #16a34a;
+}
+
+.seller-card-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.seller-name-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.seller-name {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.seller-niche-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #15803d;
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  padding: 2px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.seller-region {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin-bottom: 12px;
+}
+
+.seller-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.seller-rating {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.seller-location {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.78rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.loc-icon {
+  color: #15803d;
+}
+
+/* View Shop Button */
+.view-shop-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background-color: #166534;
+  color: #ffffff;
+  padding: 11px 16px;
+  border-radius: 10px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  margin-top: auto;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 10px rgba(22, 101, 52, 0.18);
+}
+
+.view-shop-btn:hover {
+  background-color: #14532d;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(22, 101, 52, 0.28);
+}
+
+/* Responsive */
+@media (max-width: 1100px) {
+  .sellers-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px;
+  }
+}
+
+@media (max-width: 580px) {
+  .sellers-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .meet-sellers-section {
+    padding: 50px 0 60px;
+  }
+}
