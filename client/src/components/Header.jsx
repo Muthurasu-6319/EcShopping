@@ -9,7 +9,8 @@ import {
   Sprout, 
   Store, 
   ShieldCheck,
-  LogOut
+  LogOut,
+  Heart
 } from 'lucide-react';
 import './Header.css';
 
@@ -45,11 +46,12 @@ export default function Header({ cartCount = 0, loggedInCustomer, onCustomerLogo
         <nav className="desktop-nav" aria-label="Main Navigation">
           <Link to="/" className="nav-link">Home</Link>
           <Link to="/shop" className="nav-link">Shop</Link>
+          <Link to="/about" className="nav-link">About</Link>
+          <Link to="/contact" className="nav-link">Contact</Link>
           <a href="#vendor" className="nav-link vendor-link">
             <Store size={15} className="inline-icon" />
             Become a Vendor
           </a>
-          <a href="#support" className="nav-link">Help & Support</a>
         </nav>
 
         {/* Right Section: Search & Actions */}
@@ -133,6 +135,11 @@ export default function Header({ cartCount = 0, loggedInCustomer, onCustomerLogo
             )}
           </div>
 
+          {/* Wishlist Button */}
+          <Link to="/wishlist" className="action-icon-btn wishlist-btn" title="View Wishlist" aria-label="Wishlist">
+            <Heart size={20} />
+          </Link>
+
           {/* Shopping Cart Button */}
           <Link to="/cart" className="action-icon-btn cart-btn" title="View Cart" aria-label="Shopping Cart">
             <ShoppingCart size={20} />
@@ -156,8 +163,9 @@ export default function Header({ cartCount = 0, loggedInCustomer, onCustomerLogo
           <nav className="mobile-nav">
             <Link to="/" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>Home</Link>
             <Link to="/shop" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>Shop</Link>
+            <Link to="/about" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>About Us</Link>
+            <Link to="/contact" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>Contact Us</Link>
             <a href="#vendor" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>Become a Vendor</a>
-            <a href="#support" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>Help & Support</a>
             <div className="mobile-drawer-divider" />
             <a href="#login" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>Customer Login / Register</a>
             <Link to="/vendor" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>Vendor Portal Login</Link>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronRight, Grid, List, LayoutGrid, SlidersHorizontal, Heart, Clock, ChevronDown, Plus, Minus, Eye, Star, ShoppingBag } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { getProducts } from '../utils/storage';
 import './Shop.css';
 
@@ -244,7 +245,9 @@ export default function Shop({ onAddToCart }) {
                   onMouseLeave={() => setHoveredProduct(null)}
                 >
                   <div className="product-image">
-                    <img src={product.image} alt={product.title} />
+                    <Link to={`/product/${product.id}`}>
+                      <img src={product.image} alt={product.title} />
+                    </Link>
                     
                     {/* Badges */}
                     <div className="product-badges">
@@ -289,7 +292,9 @@ export default function Shop({ onAddToCart }) {
                   </div>
                   
                   <div className="product-info">
-                    <h3 className="product-title">{product.title}</h3>
+                    <Link to={`/product/${product.id}`} style={{textDecoration: 'none'}}>
+                      <h3 className="product-title">{product.title}</h3>
+                    </Link>
                     <div className="product-seller">{product.seller || product.soldBy}</div>
                     
                     <div className="shop-rating-row">

@@ -13,6 +13,11 @@ import VendorLogin from './pages/vendor/VendorLogin';
 import VendorRegister from './pages/vendor/VendorRegister';
 import VendorDashboard from './pages/vendor/VendorDashboard';
 import CustomerProfile from './pages/CustomerProfile';
+import ProductDetails from './pages/ProductDetails';
+import Wishlist from './pages/Wishlist';
+import AboutUs from './pages/AboutUs';
+import ContactUs from './pages/ContactUs';
+import NotFound from './pages/NotFound';
 import { CheckCircle } from 'lucide-react';
 import './App.css';
 
@@ -131,6 +136,11 @@ function App() {
                         onLogout={() => setLoggedInCustomer(null)} 
                       />
                     } />
+                    <Route path="/product/:id" element={<ProductDetails onAddToCart={handleAddToCart} />} />
+                    <Route path="/wishlist" element={<Wishlist onAddToCart={handleAddToCart} />} />
+                    <Route path="/about" element={<AboutUs />} />
+                    <Route path="/contact" element={<ContactUs />} />
+                    <Route path="*" element={<NotFound />} />
                   </Routes>
                 </main>
                 <Footer />
