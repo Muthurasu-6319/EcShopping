@@ -1,71 +1,91 @@
 import React, { useState } from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Header from './components/Header';
-import Hero from './components/Hero';
-import Categories from './components/Categories';
-import HowItWorks from './components/HowItWorks';
-import FeaturedProducts from './components/FeaturedProducts';
-import MeetSellers from './components/MeetSellers';
-import WhyChooseUs from './components/WhyChooseUs';
-import Testimonials from './components/Testimonials';
-import CTA from './components/CTA';
 import Footer from './components/Footer';
-import { ShoppingBag, CheckCircle } from 'lucide-react';
+import Home from './pages/Home';
+import Shop from './pages/Shop';
+import Cart from './pages/Cart';
+import Checkout from './pages/Checkout';
+import { CheckCircle } from 'lucide-react';
 import './App.css';
 
 function App() {
-  const [cartCount, setCartCount] = useState(0);
+  const [cartItems, setCartItems] = useState([]);
   const [toastMessage, setToastMessage] = useState(null);
 
-  const handleAddToCart = (product) => {
-    setCartCount((prev) => prev + 1);
-    setToastMessage(`Added "${product.title}" to cart!`);
+  const handleAddToCart = (product, quantity = 1, variant = null) => {
+    setCartItems((prevItems) => {
+      // Check if item with same id and variant exists
+      const existingItem = prevItems.find(item => item.id === product.id && item.variant === variant);
+      if (existingItem) {
+        return prevItems.map(item => 
+          item.id === product.id && item.variant === variant 
+            ? { ...item, quantity: item.quantity + quantity } 
+            : item
+        );
+      }
+      return [...prevItems, { ...product, quantity, variant }];
+    });
+    
+    const variantText = variant ? ` (${variant})` : '';
+    setToastMessage(`Added "${product.title || product.name}${variantText}" to cart!`);
     setTimeout(() => {
       setToastMessage(null);
     }, 2800);
   };
 
+  const updateQuantity = (id, newQuantity) => {
+    if (newQuantity < 1) return;
+    setCartItems(prev => prev.map(item => item.id === id ? { ...item, quantity: newQuantity } : item));
+  };
+
+  const removeItem = (id) => {
+    setCartItems(prev => prev.filter(item => item.id !== id));
+  };
+
+  const clearCart = () => {
+    setCartItems([]);
+  };
+
+  // Calculate total count for header badge
+  const cartCount = cartItems.reduce((total, item) => total + item.quantity, 0);
+
   return (
-    <div className="app-wrapper">
-      {/* 1. EcShopping Header */}
-      <Header cartCount={cartCount} />
+    <Router>
+      <div className="app-wrapper">
+        <Header cartCount={cartCount} />
 
-      <main>
-        {/* 2. Hero Section */}
-        <Hero />
+        <main>
+          <Routes>
+            <Route path="/" element={<Home onAddToCart={handleAddToCart} />} />
+            <Route path="/shop" element={<Shop onAddToCart={handleAddToCart} />} />
+            <Route path="/cart" element={
+              <Cart 
+                cartItems={cartItems} 
+                updateQuantity={updateQuantity} 
+                removeItem={removeItem} 
+              />
+            } />
+            <Route path="/checkout" element={
+              <Checkout 
+                cartItems={cartItems} 
+                clearCart={clearCart} 
+              />
+            } />
+          </Routes>
+        </main>
 
-        {/* 3. Shop by Category (6 Categories) */}
-        <Categories />
+        <Footer />
 
-        {/* 4. How It Works (5-Step Customer Flow + Mobile App Frame) */}
-        <HowItWorks />
-
-        {/* 5. Featured Products (Row 1: Handpicked + Row 2: More Fresh Picks) */}
-        <FeaturedProducts onAddToCart={handleAddToCart} />
-
-        {/* 6. Meet Our Sellers (4 Verified Local Sellers) */}
-        <MeetSellers />
-
-        {/* 7. Why Choose Us & Vendor Banner */}
-        <WhyChooseUs />
-
-        {/* 8. Testimonials */}
-        <Testimonials />
-
-        {/* 9. Call to Action Banner */}
-        <CTA />
-      </main>
-
-      {/* 10. Footer */}
-      <Footer />
-
-      {/* Toast Notification when adding item to cart */}
-      {toastMessage && (
-        <div className="cart-toast" role="status" aria-live="polite">
-          <CheckCircle size={18} className="toast-icon" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
-    </div>
+        {/* Toast Notification when adding item to cart */}
+        {toastMessage && (
+          <div className="cart-toast" role="status" aria-live="polite">
+            <CheckCircle size={18} className="toast-icon" />
+            <span>{toastMessage}</span>
+          </div>
+        )}
+      </div>
+    </Router>
   );
 }
 

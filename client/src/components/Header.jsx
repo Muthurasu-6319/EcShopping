@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { 
   Search, 
   User, 
@@ -7,8 +8,7 @@ import {
   X, 
   Sprout, 
   Store, 
-  ShieldCheck, 
-  ChevronDown 
+  ShieldCheck
 } from 'lucide-react';
 import './Header.css';
 
@@ -28,7 +28,7 @@ export default function Header({ cartCount = 0 }) {
     <header className="site-header">
       <div className="container header-container">
         {/* Brand Logo */}
-        <a href="/" className="brand-logo" id="header-logo">
+        <Link to="/" className="brand-logo" id="header-logo">
           <div className="brand-icon-wrapper">
             <Sprout className="brand-icon" size={24} />
           </div>
@@ -38,13 +38,12 @@ export default function Header({ cartCount = 0 }) {
             </span>
             <span className="brand-tagline">Fresh • Pure • Community</span>
           </div>
-        </a>
+        </Link>
 
         {/* Desktop Navigation Links */}
         <nav className="desktop-nav" aria-label="Main Navigation">
-          <a href="#home" className="nav-link active">Home</a>
-          <a href="#shop" className="nav-link">Shop</a>
-          <a href="#categories" className="nav-link">Categories</a>
+          <Link to="/" className="nav-link">Home</Link>
+          <Link to="/shop" className="nav-link">Shop</Link>
           <a href="#vendor" className="nav-link vendor-link">
             <Store size={15} className="inline-icon" />
             Become a Vendor
@@ -113,10 +112,10 @@ export default function Header({ cartCount = 0 }) {
           </div>
 
           {/* Shopping Cart Button */}
-          <button className="action-icon-btn cart-btn" title="View Cart" aria-label="Shopping Cart">
+          <Link to="/cart" className="action-icon-btn cart-btn" title="View Cart" aria-label="Shopping Cart">
             <ShoppingCart size={20} />
             <span className="cart-badge">{cartCount}</span>
-          </button>
+          </Link>
 
           {/* Mobile Menu Toggle */}
           <button 
@@ -133,9 +132,8 @@ export default function Header({ cartCount = 0 }) {
       {mobileMenuOpen && (
         <div className="mobile-drawer">
           <nav className="mobile-nav">
-            <a href="#home" className="mobile-nav-link active" onClick={() => setMobileMenuOpen(false)}>Home</a>
-            <a href="#shop" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>Shop</a>
-            <a href="#categories" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>Categories</a>
+            <Link to="/" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>Home</Link>
+            <Link to="/shop" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>Shop</Link>
             <a href="#vendor" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>Become a Vendor</a>
             <a href="#support" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>Help & Support</a>
             <div className="mobile-drawer-divider" />
