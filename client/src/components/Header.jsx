@@ -93,20 +93,20 @@ export default function Header({ cartCount = 0 }) {
                     <span className="dropdown-item-desc">Orders, addresses & wishlist</span>
                   </div>
                 </a>
-                <a href="#vendor-login" className="dropdown-item">
+                <Link to="/vendor" className="dropdown-item">
                   <Store size={16} />
                   <div>
                     <span className="dropdown-item-title">Vendor Portal</span>
                     <span className="dropdown-item-desc">Manage shop, products & sales</span>
                   </div>
-                </a>
-                <a href="#admin" className="dropdown-item admin-item">
+                </Link>
+                <Link to="/admin" className="dropdown-item admin-item">
                   <ShieldCheck size={16} />
                   <div>
                     <span className="dropdown-item-title">Super Admin (/admin)</span>
                     <span className="dropdown-item-desc">Approvals & platform control</span>
                   </div>
-                </a>
+                </Link>
               </div>
             )}
           </div>
@@ -138,8 +138,8 @@ export default function Header({ cartCount = 0 }) {
             <a href="#support" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>Help & Support</a>
             <div className="mobile-drawer-divider" />
             <a href="#login" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>Customer Login / Register</a>
-            <a href="#vendor-login" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>Vendor Portal Login</a>
-            <a href="#admin" className="mobile-nav-link admin-link" onClick={() => setMobileMenuOpen(false)}>Super Admin Portal</a>
+            <Link to="/vendor" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>Vendor Portal Login</Link>
+            <Link to="/admin" className="mobile-nav-link admin-link" onClick={() => setMobileMenuOpen(false)}>Super Admin Portal</Link>
           </nav>
         </div>
       )}
