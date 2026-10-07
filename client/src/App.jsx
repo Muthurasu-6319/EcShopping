@@ -12,6 +12,7 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import VendorLogin from './pages/vendor/VendorLogin';
 import VendorRegister from './pages/vendor/VendorRegister';
 import VendorDashboard from './pages/vendor/VendorDashboard';
+import CustomerProfile from './pages/CustomerProfile';
 import { CheckCircle } from 'lucide-react';
 import './App.css';
 
@@ -20,6 +21,7 @@ function App() {
   const [toastMessage, setToastMessage] = useState(null);
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
   const [vendorUser, setVendorUser] = useState(null);
+  const [loggedInCustomer, setLoggedInCustomer] = useState(null);
 
   useEffect(() => {
     initStorage();
@@ -99,7 +101,11 @@ function App() {
             path="/*" 
             element={
               <>
-                <Header cartCount={cartCount} />
+                <Header 
+                  cartCount={cartCount} 
+                  loggedInCustomer={loggedInCustomer} 
+                  onCustomerLogout={() => setLoggedInCustomer(null)} 
+                />
                 <main>
                   <Routes>
                     <Route path="/" element={<Home onAddToCart={handleAddToCart} />} />
@@ -115,6 +121,14 @@ function App() {
                       <Checkout 
                         cartItems={cartItems} 
                         clearCart={clearCart} 
+                        loggedInCustomer={loggedInCustomer}
+                        onCustomerLogin={setLoggedInCustomer}
+                      />
+                    } />
+                    <Route path="/profile" element={
+                      <CustomerProfile 
+                        loggedInCustomer={loggedInCustomer} 
+                        onLogout={() => setLoggedInCustomer(null)} 
                       />
                     } />
                   </Routes>

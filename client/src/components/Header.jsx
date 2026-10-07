@@ -8,11 +8,12 @@ import {
   X, 
   Sprout, 
   Store, 
-  ShieldCheck
+  ShieldCheck,
+  LogOut
 } from 'lucide-react';
 import './Header.css';
 
-export default function Header({ cartCount = 0 }) {
+export default function Header({ cartCount = 0, loggedInCustomer, onCustomerLogout }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -86,13 +87,34 @@ export default function Header({ cartCount = 0 }) {
                   <p className="dropdown-subtitle">Access your marketplace role</p>
                 </div>
                 <div className="dropdown-divider" />
-                <a href="#login" className="dropdown-item">
-                  <User size={16} />
-                  <div>
-                    <span className="dropdown-item-title">Customer Login</span>
-                    <span className="dropdown-item-desc">Orders, addresses & wishlist</span>
-                  </div>
-                </a>
+                
+                {loggedInCustomer ? (
+                  <>
+                    <Link to="/profile" className="dropdown-item" onClick={() => setUserDropdownOpen(false)}>
+                      <User size={16} color="#4caf50" />
+                      <div>
+                        <span className="dropdown-item-title">{loggedInCustomer.name}</span>
+                        <span className="dropdown-item-desc">View profile & orders</span>
+                      </div>
+                    </Link>
+                    <a href="#" onClick={(e) => { e.preventDefault(); onCustomerLogout(); setUserDropdownOpen(false); }} className="dropdown-item">
+                      <LogOut size={16} color="#ef4444" />
+                      <div>
+                        <span className="dropdown-item-title" style={{ color: '#ef4444' }}>Logout</span>
+                        <span className="dropdown-item-desc">Sign out of customer account</span>
+                      </div>
+                    </a>
+                  </>
+                ) : (
+                  <a href="#login" className="dropdown-item">
+                    <User size={16} />
+                    <div>
+                      <span className="dropdown-item-title">Customer Login</span>
+                      <span className="dropdown-item-desc">Orders, addresses & wishlist</span>
+                    </div>
+                  </a>
+                )}
+
                 <Link to="/vendor" className="dropdown-item">
                   <Store size={16} />
                   <div>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronRight, Grid, List, LayoutGrid, SlidersHorizontal, Heart, Clock, ChevronDown, Plus, Minus, Eye, Star, ShoppingBag } from 'lucide-react';
+import { getProducts } from '../utils/storage';
 import './Shop.css';
 
 // Mock data for products
@@ -84,6 +85,7 @@ export default function Shop({ onAddToCart }) {
   const [hoveredProduct, setHoveredProduct] = useState(null);
   const [selectedVariants, setSelectedVariants] = useState({});
   const [quantities, setQuantities] = useState({});
+  const [products, setProducts] = useState(mockProducts);
 
   const handleVariantSelect = (productId, variant) => {
     setSelectedVariants(prev => ({ ...prev, [productId]: variant }));
@@ -106,6 +108,24 @@ export default function Shop({ onAddToCart }) {
   };
 
   useEffect(() => {
+    // Load approved products from storage and combine with mock products
+    const vendorProducts = getProducts().filter(p => p.status === 'approved');
+    const combinedProducts = [
+      ...mockProducts,
+      ...vendorProducts.map(vp => ({
+        id: vp.id,
+        title: vp.title,
+        price: Number(vp.price),
+        image: vp.image,
+        soldBy: vp.vendorName,
+        badge: "New",
+        rating: 5.0, // Default rating for new products
+        reviews: 0,
+        variants: [] // Defaults
+      }))
+    ];
+    setProducts(combinedProducts);
+
     const timer = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % shopSliderImages.length);
     }, 4000);
@@ -211,7 +231,7 @@ export default function Shop({ onAddToCart }) {
 
           {/* Product Grid */}
           <div className={`product-grid ${viewMode === 'list' ? 'list-view' : ''}`}>
-            {mockProducts.map((product) => {
+            {products.map((product) => {
               const activeVariant = selectedVariants[product.id] || (product.variants && product.variants[0]);
               const qty = quantities[product.id] || 1;
               const isHovered = hoveredProduct === product.id;

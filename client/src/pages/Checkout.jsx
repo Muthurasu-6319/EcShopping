@@ -1,11 +1,17 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle } from 'lucide-react';
+import { addCustomer, addOrder } from '../utils/storage';
 import './Checkout.css';
 
-export default function Checkout({ cartItems, clearCart }) {
+export default function Checkout({ cartItems, clearCart, loggedInCustomer, onCustomerLogin }) {
   const navigate = useNavigate();
   const [orderPlaced, setOrderPlaced] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  
+  const [firstName, setFirstName] = useState(loggedInCustomer ? loggedInCustomer.name.split(' ')[0] : '');
+  const [lastName, setLastName] = useState(loggedInCustomer ? loggedInCustomer.name.split(' ').slice(1).join(' ') : '');
+  const [email, setEmail] = useState(loggedInCustomer ? loggedInCustomer.email : '');
 
   const subtotal = cartItems.reduce((total, item) => {
     const priceStr = item.price.toString().replace(/[^0-9.-]+/g,"");
@@ -16,9 +22,57 @@ export default function Checkout({ cartItems, clearCart }) {
   const shipping = subtotal > 0 ? 50 : 0;
   const total = subtotal + shipping;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsLoading(true);
+    
+    // If the customer is not currently logged in, try to auto-create an account
+    if (!loggedInCustomer) {
+      const generatedPassword = Math.random().toString(36).slice(-8) + 'A1!'; // Basic complex password
+      const fullName = `${firstName} ${lastName}`.trim();
+      
+      const customerResult = addCustomer({
+        name: fullName,
+        email: email,
+        password: generatedPassword
+      });
+
+      // If account creation succeeds (email didn't exist)
+      if (customerResult.success) {
+        // Auto-login the customer
+        onCustomerLogin(customerResult.customer);
+
+        try {
+          // Send welcome email via our local backend
+          await fetch(`${import.meta.env.VITE_API_URL}/api/send-welcome`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              name: fullName,
+              email: email,
+              password: generatedPassword
+            })
+          });
+        } catch (err) {
+          console.error("Email sending failed, but order placed. Backend might not be running.", err);
+        }
+      }
+      // If customerResult.success is false (email exists), we just proceed with the order as guest.
+    }
+
+    // Save the order
+    addOrder({
+      customerName: `${firstName} ${lastName}`.trim(),
+      customerEmail: email,
+      items: cartItems,
+      totalAmount: total,
+      paymentMethod: 'cod' // Simplified for now
+    });
+
     setOrderPlaced(true);
+    setIsLoading(false);
     setTimeout(() => {
       clearCart();
       navigate('/');
@@ -55,11 +109,11 @@ export default function Checkout({ cartItems, clearCart }) {
             <div className="form-row">
               <div className="form-group">
                 <label>First Name *</label>
-                <input type="text" required />
+                <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)} required />
               </div>
               <div className="form-group">
                 <label>Last Name *</label>
-                <input type="text" required />
+                <input type="text" value={lastName} onChange={e => setLastName(e.target.value)} required />
               </div>
             </div>
             <div className="form-group">
@@ -100,7 +154,7 @@ export default function Checkout({ cartItems, clearCart }) {
               </div>
               <div className="form-group">
                 <label>Email Address *</label>
-                <input type="email" required />
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} required />
               </div>
             </div>
           </div>
@@ -150,7 +204,9 @@ export default function Checkout({ cartItems, clearCart }) {
                 </label>
               </div>
 
-              <button type="submit" className="btn-place-order">Place Order</button>
+              <button type="submit" className="btn-place-order" disabled={isLoading}>
+                {isLoading ? 'Processing...' : 'Place Order'}
+              </button>
             </div>
           </div>
         </form>
