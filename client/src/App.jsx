@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { initStorage } from './utils/storage';
+import { initStorage, getCurrentCustomer, setCurrentCustomer } from './utils/storage';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import Home from './pages/Home';
@@ -26,7 +26,17 @@ function App() {
   const [toastMessage, setToastMessage] = useState(null);
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
   const [vendorUser, setVendorUser] = useState(null);
-  const [loggedInCustomer, setLoggedInCustomer] = useState(null);
+  const [loggedInCustomer, setLoggedInCustomerState] = useState(() => getCurrentCustomer());
+
+  const handleCustomerLogin = (customer) => {
+    setCurrentCustomer(customer);
+    setLoggedInCustomerState(customer);
+  };
+
+  const handleCustomerLogout = () => {
+    setCurrentCustomer(null);
+    setLoggedInCustomerState(null);
+  };
 
   useEffect(() => {
     initStorage();
@@ -109,7 +119,7 @@ function App() {
                 <Header 
                   cartCount={cartCount} 
                   loggedInCustomer={loggedInCustomer} 
-                  onCustomerLogout={() => setLoggedInCustomer(null)} 
+                  onCustomerLogout={handleCustomerLogout} 
                 />
                 <main>
                   <Routes>
@@ -127,13 +137,13 @@ function App() {
                         cartItems={cartItems} 
                         clearCart={clearCart} 
                         loggedInCustomer={loggedInCustomer}
-                        onCustomerLogin={setLoggedInCustomer}
+                        onCustomerLogin={handleCustomerLogin}
                       />
                     } />
                     <Route path="/profile" element={
                       <CustomerProfile 
                         loggedInCustomer={loggedInCustomer} 
-                        onLogout={() => setLoggedInCustomer(null)} 
+                        onLogout={handleCustomerLogout} 
                       />
                     } />
                     <Route path="/product/:id" element={<ProductDetails onAddToCart={handleAddToCart} />} />

@@ -1,16 +1,29 @@
 import React, { useState, useEffect } from 'react';
-import { LogOut, Users, CheckCircle, XCircle, Package } from 'lucide-react';
-import { getVendors, updateVendorStatus, toggleVendorDirectSelling, getProducts, updateProductStatus } from '../../utils/storage';
+import { LogOut, Users, CheckCircle, XCircle, Package, ShoppingCart } from 'lucide-react';
+import { 
+  getVendors, 
+  updateVendorStatus, 
+  toggleVendorDirectSelling, 
+  getProducts, 
+  updateProductStatus, 
+  getOrders, 
+  updateOrderStatus, 
+  getCustomers 
+} from '../../utils/storage';
 import './AdminDashboard.css';
 
 export default function AdminDashboard({ onLogout }) {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [vendors, setVendors] = useState([]);
   const [products, setProducts] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [customers, setCustomers] = useState([]);
 
   useEffect(() => {
     setVendors(getVendors());
     setProducts(getProducts());
+    setOrders(getOrders());
+    setCustomers(getCustomers());
   }, [activeTab]);
 
   const handleStatusUpdate = (id, status) => {
@@ -28,6 +41,13 @@ export default function AdminDashboard({ onLogout }) {
     setProducts(getProducts());
   };
 
+  const handleOrderStatusUpdate = (orderId, newStatus) => {
+    updateOrderStatus(orderId, newStatus);
+    setOrders(getOrders());
+  };
+
+  const totalRevenue = orders.reduce((sum, ord) => sum + (ord.totalAmount || 0), 0);
+
   return (
     <div className="admin-layout">
       {/* Sidebar */}
@@ -37,10 +57,10 @@ export default function AdminDashboard({ onLogout }) {
         </div>
         <nav className="admin-nav">
           <a href="#" className={activeTab === 'dashboard' ? 'active' : ''} onClick={(e) => { e.preventDefault(); setActiveTab('dashboard'); }}>Dashboard</a>
-          <a href="#" className={activeTab === 'vendors' ? 'active' : ''} onClick={(e) => { e.preventDefault(); setActiveTab('vendors'); }}>Vendors</a>
-          <a href="#" className={activeTab === 'products' ? 'active' : ''} onClick={(e) => { e.preventDefault(); setActiveTab('products'); }}>Products</a>
-          <a href="#">Orders</a>
-          <a href="#">Customers</a>
+          <a href="#" className={activeTab === 'orders' ? 'active' : ''} onClick={(e) => { e.preventDefault(); setActiveTab('orders'); }}>Orders ({orders.length})</a>
+          <a href="#" className={activeTab === 'vendors' ? 'active' : ''} onClick={(e) => { e.preventDefault(); setActiveTab('vendors'); }}>Vendors ({vendors.length})</a>
+          <a href="#" className={activeTab === 'products' ? 'active' : ''} onClick={(e) => { e.preventDefault(); setActiveTab('products'); }}>Products ({products.length})</a>
+          <a href="#" className={activeTab === 'customers' ? 'active' : ''} onClick={(e) => { e.preventDefault(); setActiveTab('customers'); }}>Customers ({customers.length})</a>
         </nav>
         <button className="admin-logout-btn" onClick={onLogout}>
           <LogOut size={18} />
@@ -51,7 +71,13 @@ export default function AdminDashboard({ onLogout }) {
       {/* Main Content */}
       <main className="admin-main">
         <header className="admin-header">
-          <h1>{activeTab === 'dashboard' ? 'Dashboard Overview' : 'Vendor Management'}</h1>
+          <h1>
+            {activeTab === 'dashboard' && 'Dashboard Overview'}
+            {activeTab === 'orders' && 'All Customer Orders'}
+            {activeTab === 'vendors' && 'Vendor Management'}
+            {activeTab === 'products' && 'Product Approvals'}
+            {activeTab === 'customers' && 'Customer Accounts'}
+          </h1>
         </header>
 
         <div className="admin-content">
@@ -60,21 +86,27 @@ export default function AdminDashboard({ onLogout }) {
               <div className="stat-cards">
                 <div className="stat-card">
                   <h3>Total Sales</h3>
-                  <p>₹1,24,500</p>
+                  <p>₹{totalRevenue.toLocaleString()}</p>
                 </div>
                 <div className="stat-card">
                   <h3>Total Orders</h3>
-                  <p>156</p>
+                  <p>{orders.length}</p>
                 </div>
                 <div className="stat-card">
-                  <h3>Products</h3>
-                  <p>42</p>
+                  <h3>Total Customers</h3>
+                  <p>{customers.length}</p>
                 </div>
               </div>
               
-              <div className="admin-placeholder-box">
-                <h2>Welcome to Admin Panel</h2>
-                <p>More features will be added here soon.</p>
+              <div className="admin-placeholder-box" style={{ background: '#fff', padding: '24px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '25px' }}>
+                <h3 style={{ margin: '0 0 10px 0', color: '#1e293b' }}>Recent Orders Overview</h3>
+                <p style={{ color: '#64748b', margin: '0 0 15px 0' }}>Latest orders placed across all vendors in EcShopping.</p>
+                <button 
+                  className="approve-btn" 
+                  onClick={() => setActiveTab('orders')}
+                >
+                  <Package size={16} /> View All {orders.length} Orders
+                </button>
               </div>
             </>
           )}
@@ -215,6 +247,128 @@ export default function AdminDashboard({ onLogout }) {
                     {products.length === 0 && (
                       <tr>
                         <td colSpan="5" style={{ textAlign: 'center', padding: '20px' }}>No products found.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'orders' && (
+            <div className="admin-vendors-section">
+              <div className="vendors-header">
+                <h2>All Orders Placed</h2>
+                <p>Track customer purchases and update fulfillment status</p>
+              </div>
+
+              <div className="vendors-table-container">
+                <table className="vendors-table">
+                  <thead>
+                    <tr>
+                      <th>Order ID</th>
+                      <th>Date</th>
+                      <th>Customer</th>
+                      <th>Items & Vendors</th>
+                      <th>Total</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {orders.map(order => (
+                      <tr key={order.id}>
+                        <td><strong>{order.id}</strong></td>
+                        <td style={{ fontSize: '13px', color: '#64748b' }}>
+                          {new Date(order.date).toLocaleDateString()}
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 600 }}>{order.customerName}</div>
+                          <div style={{ fontSize: '12px', color: '#64748b' }}>{order.customerEmail}</div>
+                          {order.customerPhone && (
+                            <div style={{ fontSize: '12px', color: '#64748b' }}>📞 {order.customerPhone}</div>
+                          )}
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {order.items?.map((it, idx) => (
+                              <div key={idx} style={{ fontSize: '13px' }}>
+                                • <strong>{it.title || it.name}</strong> x {it.quantity}
+                                <span style={{ color: '#059669', marginLeft: '6px', fontSize: '12px', background: '#ecfdf5', padding: '1px 6px', borderRadius: '4px' }}>
+                                  Vendor: {it.soldBy || it.vendorName || it.seller || 'Ramesh Farms'}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                        <td><strong style={{ color: '#0f172a' }}>₹{order.totalAmount?.toFixed(2)}</strong></td>
+                        <td>
+                          <span className={`status-badge status-${(order.status || 'processing').toLowerCase()}`}>
+                            {order.status || 'Processing'}
+                          </span>
+                        </td>
+                        <td>
+                          <select 
+                            value={order.status || 'Processing'} 
+                            onChange={(e) => handleOrderStatusUpdate(order.id, e.target.value)}
+                            style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                          >
+                            <option value="Processing">Processing</option>
+                            <option value="Shipped">Shipped</option>
+                            <option value="Delivered">Delivered</option>
+                            <option value="Cancelled">Cancelled</option>
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                    {orders.length === 0 && (
+                      <tr>
+                        <td colSpan="7" style={{ textAlign: 'center', padding: '25px', color: '#64748b' }}>
+                          No orders placed yet.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'customers' && (
+            <div className="admin-vendors-section">
+              <div className="vendors-header">
+                <h2>Registered Customers</h2>
+                <p>View customers who signed up or ordered through checkout</p>
+              </div>
+
+              <div className="vendors-table-container">
+                <table className="vendors-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Contact Phone</th>
+                      <th>City / State</th>
+                      <th>Registered On</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {customers.map(c => (
+                      <tr key={c.id}>
+                        <td><strong>{c.name}</strong></td>
+                        <td>{c.email}</td>
+                        <td>{c.phone || 'N/A'}</td>
+                        <td>{c.city ? `${c.city}, ${c.state || ''}` : 'N/A'}</td>
+                        <td style={{ fontSize: '13px', color: '#64748b' }}>
+                          {c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'N/A'}
+                        </td>
+                      </tr>
+                    ))}
+                    {customers.length === 0 && (
+                      <tr>
+                        <td colSpan="5" style={{ textAlign: 'center', padding: '25px', color: '#64748b' }}>
+                          No registered customers yet.
+                        </td>
                       </tr>
                     )}
                   </tbody>

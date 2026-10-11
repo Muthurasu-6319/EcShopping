@@ -106,6 +106,20 @@ export const updateProductStatus = (id, status) => {
 
 // --- Customer Management ---
 
+const CURRENT_CUSTOMER_KEY = 'ecshopping_current_customer';
+
+export const getCurrentCustomer = () => {
+  return JSON.parse(localStorage.getItem(CURRENT_CUSTOMER_KEY) || 'null');
+};
+
+export const setCurrentCustomer = (customer) => {
+  if (customer) {
+    localStorage.setItem(CURRENT_CUSTOMER_KEY, JSON.stringify(customer));
+  } else {
+    localStorage.removeItem(CURRENT_CUSTOMER_KEY);
+  }
+};
+
 export const getCustomers = () => {
   return JSON.parse(localStorage.getItem(CUSTOMERS_KEY) || '[]');
 };
@@ -114,8 +128,9 @@ export const addCustomer = (customerData) => {
   const customers = getCustomers();
   
   // Prevent duplicate email
-  if (customers.some(c => c.email === customerData.email)) {
-    return { success: false, message: 'Email already exists' };
+  const existing = customers.find(c => c.email.toLowerCase() === customerData.email.toLowerCase());
+  if (existing) {
+    return { success: false, message: 'Email already exists', customer: existing };
   }
 
   const newCustomer = {
@@ -137,7 +152,29 @@ export const getOrders = () => {
 
 export const getCustomerOrders = (customerEmail) => {
   const orders = getOrders();
-  return orders.filter(o => o.customerEmail === customerEmail);
+  return orders.filter(o => o.customerEmail && o.customerEmail.toLowerCase() === (customerEmail || '').toLowerCase());
+};
+
+export const getVendorOrders = (vendorId, vendorName) => {
+  const orders = getOrders();
+  return orders.filter(o => {
+    if (!o.items) return false;
+    return o.items.some(item => {
+      if (item.vendorId && vendorId && String(item.vendorId) === String(vendorId)) return true;
+      const itemSeller = (item.soldBy || item.vendorName || item.seller || '').toLowerCase();
+      const vName = (vendorName || '').toLowerCase();
+      return itemSeller && vName && (itemSeller.includes(vName) || vName.includes(itemSeller));
+    });
+  }).map(order => ({
+    ...order,
+    // Filter only items belonging to this vendor for their breakdown
+    vendorItems: order.items.filter(item => {
+      if (item.vendorId && vendorId && String(item.vendorId) === String(vendorId)) return true;
+      const itemSeller = (item.soldBy || item.vendorName || item.seller || '').toLowerCase();
+      const vName = (vendorName || '').toLowerCase();
+      return itemSeller && vName && (itemSeller.includes(vName) || vName.includes(itemSeller));
+    })
+  }));
 };
 
 export const addOrder = (orderData) => {
@@ -148,7 +185,14 @@ export const addOrder = (orderData) => {
     status: 'Processing',
     date: new Date().toISOString()
   };
-  orders.push(newOrder);
+  orders.unshift(newOrder); // newest first
   localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
   return newOrder;
+};
+
+export const updateOrderStatus = (orderId, newStatus) => {
+  const orders = getOrders();
+  const updated = orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o);
+  localStorage.setItem(ORDERS_KEY, JSON.stringify(updated));
+  return updated;
 };

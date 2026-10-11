@@ -1,31 +1,49 @@
 import React, { useState, useEffect } from 'react';
-import { LogOut, Plus, Package } from 'lucide-react';
-import { getProducts, addProduct } from '../../utils/storage';
+import { LogOut, Plus, Package, ShoppingBag, TrendingUp, CheckCircle } from 'lucide-react';
+import { getProducts, addProduct, getVendorOrders, updateOrderStatus } from '../../utils/storage';
 import '../admin/AdminDashboard.css';
 
 export default function VendorDashboard({ vendor, onLogout }) {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [products, setProducts] = useState([]);
+  const [orders, setOrders] = useState([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newProduct, setNewProduct] = useState({ title: '', price: '', image: '' });
 
-  useEffect(() => {
-    // Load only this vendor's products
+  const loadData = () => {
     const allProducts = getProducts();
     setProducts(allProducts.filter(p => p.vendorId === vendor.id));
-  }, [vendor.id]);
+    setOrders(getVendorOrders(vendor.id, vendor.name));
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [vendor.id, activeTab]);
 
   const handleAddProduct = (e) => {
     e.preventDefault();
     addProduct(vendor, { ...newProduct, price: Number(newProduct.price) });
-    // Refresh products
-    const allProducts = getProducts();
-    setProducts(allProducts.filter(p => p.vendorId === vendor.id));
+    loadData();
     setNewProduct({ title: '', price: '', image: '' });
     setShowAddForm(false);
   };
 
+  const handleStatusChange = (orderId, newStatus) => {
+    updateOrderStatus(orderId, newStatus);
+    loadData();
+  };
+
   if (!vendor) return null;
+
+  // Calculate vendor-specific revenue from orders
+  const vendorRevenue = orders.reduce((total, order) => {
+    const itemsTotal = (order.vendorItems || []).reduce((sum, item) => {
+      const priceStr = item.price.toString().replace(/[^0-9.-]+/g, "");
+      const price = parseFloat(priceStr.split('-')[0]) || 0;
+      return sum + (price * item.quantity);
+    }, 0);
+    return total + itemsTotal;
+  }, 0);
 
   return (
     <div className="admin-layout">
@@ -39,9 +57,8 @@ export default function VendorDashboard({ vendor, onLogout }) {
         </div>
         <nav className="admin-nav">
           <a href="#" className={activeTab === 'dashboard' ? 'active' : ''} onClick={(e) => { e.preventDefault(); setActiveTab('dashboard'); }}>Dashboard</a>
-          <a href="#" className={activeTab === 'products' ? 'active' : ''} onClick={(e) => { e.preventDefault(); setActiveTab('products'); }}>My Products</a>
-          <a href="#" onClick={(e) => e.preventDefault()}>Orders Received</a>
-          <a href="#" onClick={(e) => e.preventDefault()}>Earnings</a>
+          <a href="#" className={activeTab === 'products' ? 'active' : ''} onClick={(e) => { e.preventDefault(); setActiveTab('products'); }}>My Products ({products.length})</a>
+          <a href="#" className={activeTab === 'orders' ? 'active' : ''} onClick={(e) => { e.preventDefault(); setActiveTab('orders'); }}>Orders Received ({orders.length})</a>
         </nav>
         <button className="admin-logout-btn" onClick={onLogout}>
           <LogOut size={18} />
@@ -52,7 +69,11 @@ export default function VendorDashboard({ vendor, onLogout }) {
       {/* Main Content */}
       <main className="admin-main">
         <header className="admin-header">
-          <h1>{activeTab === 'dashboard' ? 'Vendor Dashboard' : 'My Products'}</h1>
+          <h1>
+            {activeTab === 'dashboard' && 'Vendor Dashboard'}
+            {activeTab === 'products' && 'My Products'}
+            {activeTab === 'orders' && 'Orders Received'}
+          </h1>
         </header>
 
         <div className="admin-content">
@@ -61,21 +82,29 @@ export default function VendorDashboard({ vendor, onLogout }) {
               <div className="stat-cards">
                 <div className="stat-card">
                   <h3>My Total Sales</h3>
-                  <p>₹24,500</p>
+                  <p>₹{vendorRevenue.toLocaleString()}</p>
+                </div>
+                <div className="stat-card">
+                  <h3>Orders Received</h3>
+                  <p>{orders.length}</p>
                 </div>
                 <div className="stat-card">
                   <h3>Active Products</h3>
                   <p>{products.filter(p => p.status === 'approved').length}</p>
                 </div>
-                <div className="stat-card">
-                  <h3>Pending Approval</h3>
-                  <p>{products.filter(p => p.status === 'pending').length}</p>
-                </div>
               </div>
               
-              <div className="admin-placeholder-box">
-                <h2>Welcome to your Vendor Panel</h2>
-                <p>You can manage your products, track orders, and view your earnings here.</p>
+              <div className="admin-placeholder-box" style={{ background: '#fff', padding: '24px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <h3 style={{ margin: '0 0 10px 0', color: '#1e293b' }}>Vendor Order Notifications</h3>
+                <p style={{ color: '#64748b', margin: '0 0 15px 0' }}>
+                  Whenever a customer buys products supplied by <strong>{vendor.name}</strong>, orders appear instantly in your panel.
+                </p>
+                <button 
+                  className="approve-btn" 
+                  onClick={() => setActiveTab('orders')}
+                >
+                  <Package size={16} /> View Orders Received ({orders.length})
+                </button>
               </div>
             </>
           )}
@@ -160,6 +189,102 @@ export default function VendorDashboard({ vendor, onLogout }) {
                     {products.length === 0 && (
                       <tr>
                         <td colSpan="4" style={{ textAlign: 'center', padding: '20px' }}>You haven't added any products yet.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'orders' && (
+            <div className="admin-vendors-section">
+              <div className="vendors-header">
+                <h2>Orders Received for {vendor.name}</h2>
+                <p>Track orders placed for your products by customers</p>
+              </div>
+
+              <div className="vendors-table-container">
+                <table className="vendors-table">
+                  <thead>
+                    <tr>
+                      <th>Order ID</th>
+                      <th>Date</th>
+                      <th>Customer Details</th>
+                      <th>Your Products Ordered</th>
+                      <th>Delivery Address</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {orders.map(order => {
+                      const itemsForThisVendor = order.vendorItems || order.items;
+                      const vendorSubtotal = itemsForThisVendor.reduce((sum, item) => {
+                        const priceStr = item.price.toString().replace(/[^0-9.-]+/g, "");
+                        const price = parseFloat(priceStr.split('-')[0]) || 0;
+                        return sum + (price * item.quantity);
+                      }, 0);
+
+                      return (
+                        <tr key={order.id}>
+                          <td><strong>{order.id}</strong></td>
+                          <td style={{ fontSize: '13px', color: '#64748b' }}>
+                            {new Date(order.date).toLocaleDateString()}
+                          </td>
+                          <td>
+                            <div style={{ fontWeight: 600 }}>{order.customerName}</div>
+                            <div style={{ fontSize: '12px', color: '#64748b' }}>{order.customerEmail}</div>
+                            {order.customerPhone && (
+                              <div style={{ fontSize: '12px', color: '#64748b' }}>📞 {order.customerPhone}</div>
+                            )}
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              {itemsForThisVendor.map((it, idx) => (
+                                <div key={idx} style={{ fontSize: '13px' }}>
+                                  • <strong>{it.title || it.name}</strong> x {it.quantity} {it.variant ? `(${it.variant})` : ''} - ₹{((parseFloat(String(it.price).replace(/[^0-9.-]+/g, "")) || 0) * it.quantity).toFixed(2)}
+                                </div>
+                              ))}
+                              <div style={{ fontWeight: 600, color: '#166534', marginTop: '4px', fontSize: '13px' }}>
+                                Your share: ₹{vendorSubtotal.toFixed(2)}
+                              </div>
+                            </div>
+                          </td>
+                          <td style={{ fontSize: '13px', color: '#475569' }}>
+                            {order.shippingAddress ? (
+                              <div>
+                                {order.shippingAddress.street}<br/>
+                                {order.shippingAddress.city}, {order.shippingAddress.state} - {order.shippingAddress.postcode}
+                              </div>
+                            ) : (
+                              'Standard Delivery'
+                            )}
+                          </td>
+                          <td>
+                            <span className={`status-badge status-${(order.status || 'processing').toLowerCase()}`}>
+                              {order.status || 'Processing'}
+                            </span>
+                          </td>
+                          <td>
+                            <select 
+                              value={order.status || 'Processing'} 
+                              onChange={(e) => handleStatusChange(order.id, e.target.value)}
+                              style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                            >
+                              <option value="Processing">Processing</option>
+                              <option value="Shipped">Shipped</option>
+                              <option value="Delivered">Delivered</option>
+                            </select>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {orders.length === 0 && (
+                      <tr>
+                        <td colSpan="7" style={{ textAlign: 'center', padding: '25px', color: '#64748b' }}>
+                          No orders received for your products yet.
+                        </td>
                       </tr>
                     )}
                   </tbody>
