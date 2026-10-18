@@ -8,17 +8,7 @@ const ORDERS_KEY = 'ecshopping_orders';
 // Initialize mock data if empty
 export const initStorage = () => {
   if (!localStorage.getItem(VENDORS_KEY)) {
-    localStorage.setItem(VENDORS_KEY, JSON.stringify([
-      {
-        id: 'v1',
-        name: 'Ramesh Farms',
-        email: 'ramesh@example.com',
-        password: 'password123',
-        status: 'approved',
-        directSelling: true, // Specific vendors can sell directly without approval
-        createdAt: new Date().toISOString()
-      }
-    ]));
+    localStorage.setItem(VENDORS_KEY, JSON.stringify([]));
   }
   if (!localStorage.getItem(PRODUCTS_KEY)) {
     localStorage.setItem(PRODUCTS_KEY, JSON.stringify([]));
@@ -102,6 +92,43 @@ export const updateProductStatus = (id, status) => {
   const products = getProducts();
   const updated = products.map(p => p.id === id ? { ...p, status } : p);
   localStorage.setItem(PRODUCTS_KEY, JSON.stringify(updated));
+};
+
+export const deleteProduct = (id) => {
+  const products = getProducts();
+  const updated = products.filter(p => p.id !== id);
+  localStorage.setItem(PRODUCTS_KEY, JSON.stringify(updated));
+  return updated;
+};
+
+export const updateProduct = (id, updatedData) => {
+  const products = getProducts();
+  const updated = products.map(p => p.id === id ? { ...p, ...updatedData } : p);
+  localStorage.setItem(PRODUCTS_KEY, JSON.stringify(updated));
+  return updated.find(p => p.id === id);
+};
+
+export const toggleProductStock = (id) => {
+  const products = getProducts();
+  const target = products.find(p => p.id === id);
+  if (!target) return null;
+  const newInStock = target.stockStatus === 'in_stock' ? false : target.inStock === false ? true : false;
+  const newStatus = newInStock ? 'in_stock' : 'out_of_stock';
+  const updated = products.map(p => p.id === id ? { ...p, inStock: newInStock, stockStatus: newStatus } : p);
+  localStorage.setItem(PRODUCTS_KEY, JSON.stringify(updated));
+  return { ...target, inStock: newInStock, stockStatus: newStatus };
+};
+
+export const updateVendor = (id, updatedData) => {
+  const vendors = getVendors();
+  const updated = vendors.map(v => v.id === id ? { ...v, ...updatedData } : v);
+  localStorage.setItem(VENDORS_KEY, JSON.stringify(updated));
+  // Also update current vendor session if matching
+  const current = JSON.parse(localStorage.getItem('ecshopping_current_vendor') || 'null');
+  if (current && current.id === id) {
+    localStorage.setItem('ecshopping_current_vendor', JSON.stringify({ ...current, ...updatedData }));
+  }
+  return { ...updatedData, id };
 };
 
 // --- Customer Management ---

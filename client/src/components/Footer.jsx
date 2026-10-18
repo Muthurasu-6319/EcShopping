@@ -1,63 +1,64 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
+import brandLogo from '../assets/logo/without-bg-logo.png';
+import { Globe } from 'lucide-react';
 import './Footer.css';
-import { Sprout, MapPin, Globe } from 'lucide-react';
 
 export default function Footer() {
   return (
     <footer className="site-footer">
       <div className="container footer-top">
         <div className="footer-brand-col">
-          <a href="/" className="footer-brand">
-            <div className="brand-icon-wrapper">
-              <Sprout className="brand-icon" size={24} />
-            </div>
-            <span className="brand-name">
-              Ec<span className="brand-highlight">Shopping</span>
-            </span>
-          </a>
+          <Link to="/" className="footer-brand" aria-label="EcShopping">
+            <img 
+              src={brandLogo} 
+              alt="EcShopping" 
+              className="footer-brand-logo-img" 
+            />
+          </Link>
           <p className="footer-desc">
-            Connecting farmers, sellers and customers for a healthier and greener future.
+            Connecting farmers, local sellers, and customers for a fresh, authentic, and organic future.
           </p>
           <div className="social-links">
-            <a href="#fb">FB</a>
-            <a href="#ig">IG</a>
-            <a href="#tw">TW</a>
+            <a href="#fb" aria-label="Facebook">FB</a>
+            <a href="#ig" aria-label="Instagram">IG</a>
+            <a href="#tw" aria-label="Twitter">TW</a>
           </div>
         </div>
 
         <div className="footer-links-col">
           <h4>Shop</h4>
           <ul>
-            <li><a href="#all">All Products</a></li>
-            <li><a href="#cat">Categories</a></li>
-            <li><a href="#feat">Featured</a></li>
-            <li><a href="#new">New Arrivals</a></li>
+            <li><Link to="/shop">All Products</Link></li>
+            <li><Link to="/shop">Fresh Vegetables</Link></li>
+            <li><Link to="/shop">Organic Grocery</Link></li>
+            <li><Link to="/shop">Farm Dairy</Link></li>
           </ul>
         </div>
 
         <div className="footer-links-col">
           <h4>Support</h4>
           <ul>
-            <li><a href="#help">Help & Support</a></li>
-            <li><a href="#track">Track Order</a></li>
-            <li><a href="#ret">Returns & Refunds</a></li>
-            <li><a href="#contact">Contact Us</a></li>
+            <li><Link to="/contact">Help & Support</Link></li>
+            <li><Link to="/profile">Track Order</Link></li>
+            <li><Link to="/contact">Returns & Refunds</Link></li>
+            <li><Link to="/contact">Contact Us</Link></li>
           </ul>
         </div>
 
         <div className="footer-links-col">
-          <h4>Vendor</h4>
+          <h4>Marketplace</h4>
           <ul>
-            <li><a href="#become">Become a Vendor</a></li>
-            <li><a href="#login">Vendor Login</a></li>
-            <li><a href="#terms">Terms & Conditions</a></li>
-            <li><a href="#privacy">Privacy Policy</a></li>
+            <li><Link to="/vendor">Vendor Portal</Link></li>
+            <li><Link to="/vendor/register">Become a Seller</Link></li>
+            <li><Link to="/admin">Admin Portal</Link></li>
+            <li><Link to="/about">About Us</Link></li>
           </ul>
         </div>
 
         <div className="footer-newsletter-col">
           <h4>Get Updates</h4>
-          <p>Subscribe to get the latest products and offers.</p>
+          <p>Subscribe to get the latest organic products and farm-fresh offers.</p>
           <form className="newsletter-form" onSubmit={(e) => e.preventDefault()}>
             <input type="email" placeholder="Enter your email" required />
             <button type="submit">&rarr;</button>

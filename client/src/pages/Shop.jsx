@@ -3,6 +3,7 @@ import { ChevronRight, Grid, List, LayoutGrid, SlidersHorizontal, Heart, Clock, 
 import { Link } from 'react-router-dom';
 import { getProducts } from '../utils/storage';
 import './Shop.css';
+import '../components/FeaturedProducts.css';
 
 // Mock data for products
 const shopSliderImages = [
@@ -231,95 +232,97 @@ export default function Shop({ onAddToCart }) {
           </div>
 
           {/* Product Grid */}
-          <div className={`product-grid ${viewMode === 'list' ? 'list-view' : ''}`}>
+          <div className="competitor-product-grid">
             {products.map((product) => {
-              const activeVariant = selectedVariants[product.id] || (product.variants && product.variants[0]);
               const qty = quantities[product.id] || 1;
-              const isHovered = hoveredProduct === product.id;
+              const originalPrice = product.originalPrice || (product.price ? Math.round(product.price * 1.25) : null);
 
               return (
-                <div 
-                  key={product.id} 
-                  className="product-card"
-                  onMouseEnter={() => setHoveredProduct(product.id)}
-                  onMouseLeave={() => setHoveredProduct(null)}
-                >
-                  <div className="product-image">
-                    <Link to={`/product/${product.id}`}>
-                      <img src={product.image} alt={product.title} />
+                <div key={product.id} className="competitor-product-card">
+                  {/* Square Image Box with Bottom Action Bar */}
+                  <div className="card-image-wrapper">
+                    <Link to={`/product/${product.id}`} className="card-image-link">
+                      <img 
+                        src={product.image} 
+                        alt={product.title} 
+                        className="card-main-image"
+                        loading="lazy" 
+                      />
                     </Link>
                     
-                    {/* Badges */}
-                    <div className="product-badges">
-                      {product.badge && <span className={`shop-badge badge-${product.badge.toLowerCase()}`}>{product.badge}</span>}
-                    </div>
+                    {/* Badge */}
+                    {product.badge && (
+                      <span className="card-bestseller-badge">
+                        {product.badge}
+                      </span>
+                    )}
 
                     {/* Wishlist Button */}
-                    <button className="shop-wishlist-btn">
+                    <button 
+                      type="button" 
+                      className="card-wishlist-toggle"
+                      aria-label="Wishlist"
+                    >
                       <Heart size={16} color="#475569" />
                     </button>
 
-                    {/* Variant Overlay Glassmorphism */}
-                    {product.variants && product.variants.length > 0 && (
-                      <div className={`variant-overlay ${isHovered ? 'show' : ''}`}>
-                        <div className="variant-header">
-                          <span className="variant-title">Options</span>
-                          <ChevronDown size={16} />
-                        </div>
-                        <div className="variant-options">
-                          {product.variants.map(v => (
-                            <button 
-                              key={v}
-                              className={`variant-pill ${activeVariant === v ? 'active' : ''}`}
-                              onClick={() => handleVariantSelect(product.id, v)}
-                            >
-                              {v}
-                            </button>
-                          ))}
-                        </div>
-                        
-                        <div className="variant-action-row">
-                          <div className="qty-selector">
-                            <input type="number" value={qty} readOnly />
-                            <div className="qty-btns">
-                              <button onClick={() => handleQuantityChange(product.id, 1)}><Plus size={12} /></button>
-                              <button onClick={() => handleQuantityChange(product.id, -1)}><Minus size={12} /></button>
-                            </div>
-                          </div>
-                        </div>
+                    {/* Bottom Action Bar: Quantity Controls + ADD TO CART */}
+                    <div className="card-bottom-action-bar">
+                      <div className="card-qty-control">
+                        <button 
+                          type="button" 
+                          onClick={() => handleQuantityChange(product.id, -1)}
+                          aria-label="Decrease quantity"
+                        >
+                          <Minus size={14} />
+                        </button>
+                        <span className="card-qty-num">{qty}</span>
+                        <button 
+                          type="button" 
+                          onClick={() => handleQuantityChange(product.id, 1)}
+                          aria-label="Increase quantity"
+                        >
+                          <Plus size={14} />
+                        </button>
                       </div>
-                    )}
+
+                      <button 
+                        type="button" 
+                        className="card-add-cart-btn" 
+                        onClick={() => handleAddToCartWithVariant(product)}
+                      >
+                        ADD TO CART
+                      </button>
+                    </div>
                   </div>
                   
-                  <div className="product-info">
-                    <Link to={`/product/${product.id}`} style={{textDecoration: 'none'}}>
-                      <h3 className="product-title">{product.title}</h3>
+                  {/* Details Below Image */}
+                  <div className="card-details-box">
+                    <Link to={`/product/${product.id}`} className="card-title-link">
+                      <h3 className="card-product-title">{product.title}</h3>
                     </Link>
-                    <div className="product-seller">{product.seller || product.soldBy}</div>
-                    
-                    <div className="shop-rating-row">
-                      <div className="star-rating">
-                        <Star size={14} className="star-icon" fill="#eab308" color="#eab308" />
-                        <span className="rating-score">{product.rating}</span>
-                      </div>
-                      <span className="rating-count">({product.reviews})</span>
+
+                    <div className="card-price-row">
+                      {originalPrice && (
+                        <span className="card-original-price">
+                          Rs. {originalPrice.toFixed(2)}
+                        </span>
+                      )}
+                      <span className="card-current-price">
+                        Rs. {Number(product.price).toFixed(2)}
+                      </span>
                     </div>
 
-                    <div className="shop-price-row">
-                      <span className="currency-symbol">₹</span>
-                      <span className="price-amount">{product.price.toLocaleString('en-IN')}</span>
-                    </div>
-                    
-                    {viewMode === 'list' && (
-                      <div className="product-description">
-                        High quality product sourced directly from local farmers and vendors. Authentic taste and freshness guaranteed.
+                    <div className="card-rating-row">
+                      <div className="card-stars">
+                        {[...Array(5)].map((_, i) => (
+                          <Star key={i} size={14} fill="#f59e0b" color="#f59e0b" />
+                        ))}
                       </div>
-                    )}
-                    
-                    <button className="shop-add-to-cart-btn" onClick={() => handleAddToCartWithVariant(product)}>
-                      <ShoppingBag size={16} />
-                      <span>Add to Cart</span>
-                    </button>
+                      <span className="card-reviews-text">
+                        {product.reviews || 0} reviews
+                      </span>
+                    </div>
                   </div>
                 </div>
               );

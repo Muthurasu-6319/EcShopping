@@ -1,149 +1,179 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { NavLink, Link, useNavigate } from 'react-router-dom';
 import { 
   Search, 
   User, 
   ShoppingCart, 
   Menu, 
   X, 
-  Sprout, 
   Store, 
   ShieldCheck,
   LogOut,
   Heart
 } from 'lucide-react';
+import brandLogo from '../assets/logo/without-bg-logo.png';
 import './Header.css';
 
 export default function Header({ cartCount = 0, loggedInCustomer, onCustomerLogout }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [wishlistCount, setWishlistCount] = useState(0);
+
+  const navigate = useNavigate();
+  const searchInputRef = useRef(null);
+
+  // Sync wishlist count from storage
+  useEffect(() => {
+    const updateWishlist = () => {
+      try {
+        const items = JSON.parse(localStorage.getItem('ecshopping_wishlist') || '[]');
+        setWishlistCount(items.length);
+      } catch {
+        setWishlistCount(0);
+      }
+    };
+
+    updateWishlist();
+    window.addEventListener('storage', updateWishlist);
+    window.addEventListener('wishlistUpdated', updateWishlist);
+    return () => {
+      window.removeEventListener('storage', updateWishlist);
+      window.removeEventListener('wishlistUpdated', updateWishlist);
+    };
+  }, []);
+
+  // Focus search input when opened
+  useEffect(() => {
+    if (searchOpen && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [searchOpen]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      alert(`Searching for: ${searchQuery}`);
+      navigate(`/shop?search=${encodeURIComponent(searchQuery.trim())}`);
+      setSearchOpen(false);
     }
   };
 
   return (
     <header className="site-header">
       <div className="container header-container">
-        {/* Brand Logo */}
-        <Link to="/" className="brand-logo" id="header-logo">
-          <div className="brand-icon-wrapper">
-            <Sprout className="brand-icon" size={24} />
-          </div>
-          <div className="brand-text-group">
-            <span className="brand-name">
-              Ec<span className="brand-highlight">Shopping</span>
-            </span>
-            <span className="brand-tagline">Fresh • Pure • Community</span>
-          </div>
+        {/* Left: Brand Logo */}
+        <Link to="/" className="brand-logo" id="header-logo" aria-label="EcShopping Home">
+          <img 
+            src={brandLogo} 
+            alt="EcShopping" 
+            className="brand-logo-img" 
+          />
         </Link>
 
-        {/* Desktop Navigation Links */}
+        {/* Center: Main Navigation (Home, Shop, About, Contact) */}
         <nav className="desktop-nav" aria-label="Main Navigation">
-          <Link to="/" className="nav-link">Home</Link>
-          <Link to="/shop" className="nav-link">Shop</Link>
-          <Link to="/about" className="nav-link">About</Link>
-          <Link to="/contact" className="nav-link">Contact</Link>
-          <a href="#vendor" className="nav-link vendor-link">
-            <Store size={15} className="inline-icon" />
-            Become a Vendor
-          </a>
+          <NavLink 
+            to="/" 
+            className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}
+            end
+          >
+            Home
+          </NavLink>
+          <NavLink 
+            to="/shop" 
+            className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}
+          >
+            Shop
+          </NavLink>
+          <NavLink 
+            to="/about" 
+            className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}
+          >
+            About
+          </NavLink>
+          <NavLink 
+            to="/contact" 
+            className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}
+          >
+            Contact
+          </NavLink>
         </nav>
 
-        {/* Right Section: Search & Actions */}
+        {/* Right: Action Icons (Search, Login/User, Wishlist, Cart) */}
         <div className="header-actions">
-          {/* Search Box */}
-          <form className="search-form" onSubmit={handleSearchSubmit}>
-            <input 
-              type="text" 
-              className="search-input" 
-              placeholder="Search products, sellers..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              aria-label="Search products and sellers"
-            />
-            <button type="submit" className="search-btn" aria-label="Submit search">
-              <Search size={17} />
-            </button>
-          </form>
-
-          {/* User Account with Portal Dropdown */}
-          <div className="user-menu-wrapper">
+          {/* 1. Search Action */}
+          <div className="search-action-wrapper">
             <button 
-              className="action-icon-btn user-btn" 
-              onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-              title="Account & Portals"
-              aria-label="User Account"
+              className={`action-icon-btn ${searchOpen ? 'active' : ''}`}
+              onClick={() => setSearchOpen(!searchOpen)}
+              title="Search"
+              aria-label="Search"
             >
-              <User size={20} />
+              <Search size={21} />
             </button>
 
-            {userDropdownOpen && (
-              <div className="user-dropdown-menu">
-                <div className="dropdown-header">
-                  <p className="dropdown-title">Account & Portals</p>
-                  <p className="dropdown-subtitle">Access your marketplace role</p>
-                </div>
-                <div className="dropdown-divider" />
-                
-                {loggedInCustomer ? (
-                  <>
-                    <Link to="/profile" className="dropdown-item" onClick={() => setUserDropdownOpen(false)}>
-                      <User size={16} color="#4caf50" />
-                      <div>
-                        <span className="dropdown-item-title">{loggedInCustomer.name}</span>
-                        <span className="dropdown-item-desc">View profile & orders</span>
-                      </div>
-                    </Link>
-                    <a href="#" onClick={(e) => { e.preventDefault(); onCustomerLogout(); setUserDropdownOpen(false); }} className="dropdown-item">
-                      <LogOut size={16} color="#ef4444" />
-                      <div>
-                        <span className="dropdown-item-title" style={{ color: '#ef4444' }}>Logout</span>
-                        <span className="dropdown-item-desc">Sign out of customer account</span>
-                      </div>
-                    </a>
-                  </>
-                ) : (
-                  <a href="#login" className="dropdown-item">
-                    <User size={16} />
-                    <div>
-                      <span className="dropdown-item-title">Customer Login</span>
-                      <span className="dropdown-item-desc">Orders, addresses & wishlist</span>
-                    </div>
-                  </a>
-                )}
-
-                <Link to="/vendor" className="dropdown-item">
-                  <Store size={16} />
-                  <div>
-                    <span className="dropdown-item-title">Vendor Portal</span>
-                    <span className="dropdown-item-desc">Manage shop, products & sales</span>
-                  </div>
-                </Link>
-                <Link to="/admin" className="dropdown-item admin-item">
-                  <ShieldCheck size={16} />
-                  <div>
-                    <span className="dropdown-item-title">Super Admin (/admin)</span>
-                    <span className="dropdown-item-desc">Approvals & platform control</span>
-                  </div>
-                </Link>
-              </div>
+            {searchOpen && (
+              <form className="header-search-bar" onSubmit={handleSearchSubmit}>
+                <input 
+                  ref={searchInputRef}
+                  type="text" 
+                  className="header-search-input" 
+                  placeholder="Search products..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  aria-label="Search products"
+                />
+                <button type="submit" className="header-search-submit" aria-label="Submit search">
+                  <Search size={18} />
+                </button>
+                <button 
+                  type="button" 
+                  className="header-search-close" 
+                  onClick={() => setSearchOpen(false)}
+                  aria-label="Close search"
+                >
+                  <X size={18} />
+                </button>
+              </form>
             )}
           </div>
 
-          {/* Wishlist Button */}
-          <Link to="/wishlist" className="action-icon-btn wishlist-btn" title="View Wishlist" aria-label="Wishlist">
-            <Heart size={20} />
+          {/* 2. User Account / Login (Displays Initial Letter when logged in) */}
+          <Link 
+            to={loggedInCustomer ? "/profile" : "/login"}
+            className={`action-icon-btn header-user-btn ${loggedInCustomer ? 'has-initial' : ''}`}
+            title={loggedInCustomer ? `My Account (${loggedInCustomer.name})` : "Login to your account"}
+            aria-label="User Account"
+          >
+            {loggedInCustomer ? (
+              <span className="user-initial-avatar">
+                {loggedInCustomer.name?.trim()?.charAt(0)?.toUpperCase() || 'U'}
+              </span>
+            ) : (
+              <User size={21} />
+            )}
           </Link>
 
-          {/* Shopping Cart Button */}
-          <Link to="/cart" className="action-icon-btn cart-btn" title="View Cart" aria-label="Shopping Cart">
-            <ShoppingCart size={20} />
-            <span className="cart-badge">{cartCount}</span>
+          {/* 3. Wishlist / Likes Heart */}
+          <Link 
+            to="/wishlist" 
+            className="action-icon-btn header-wishlist-btn" 
+            title="Wishlist" 
+            aria-label="Wishlist"
+          >
+            <Heart size={21} />
+            <span className="icon-badge wishlist-badge">{wishlistCount}</span>
+          </Link>
+
+          {/* 4. Shopping Cart */}
+          <Link 
+            to="/cart" 
+            className="action-icon-btn header-cart-btn" 
+            title="Shopping Cart" 
+            aria-label="Shopping Cart"
+          >
+            <ShoppingCart size={21} />
+            <span className="icon-badge cart-badge">{cartCount}</span>
           </Link>
 
           {/* Mobile Menu Toggle */}
@@ -161,15 +191,58 @@ export default function Header({ cartCount = 0, loggedInCustomer, onCustomerLogo
       {mobileMenuOpen && (
         <div className="mobile-drawer">
           <nav className="mobile-nav">
-            <Link to="/" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>Home</Link>
-            <Link to="/shop" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>Shop</Link>
-            <Link to="/about" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>About Us</Link>
-            <Link to="/contact" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>Contact Us</Link>
-            <a href="#vendor" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>Become a Vendor</a>
+            <NavLink 
+              to="/" 
+              className={({ isActive }) => isActive ? "mobile-nav-link active" : "mobile-nav-link"} 
+              onClick={() => setMobileMenuOpen(false)}
+              end
+            >
+              Home
+            </NavLink>
+            <NavLink 
+              to="/shop" 
+              className={({ isActive }) => isActive ? "mobile-nav-link active" : "mobile-nav-link"} 
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Shop
+            </NavLink>
+            <NavLink 
+              to="/about" 
+              className={({ isActive }) => isActive ? "mobile-nav-link active" : "mobile-nav-link"} 
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              About
+            </NavLink>
+            <NavLink 
+              to="/contact" 
+              className={({ isActive }) => isActive ? "mobile-nav-link active" : "mobile-nav-link"} 
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Contact
+            </NavLink>
             <div className="mobile-drawer-divider" />
-            <a href="#login" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>Customer Login / Register</a>
-            <Link to="/vendor" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>Vendor Portal Login</Link>
-            <Link to="/admin" className="mobile-nav-link admin-link" onClick={() => setMobileMenuOpen(false)}>Super Admin Portal</Link>
+            <Link to="/wishlist" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>
+              My Wishlist ({wishlistCount})
+            </Link>
+            <Link to="/cart" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>
+              My Cart ({cartCount})
+            </Link>
+            {loggedInCustomer ? (
+              <Link to="/profile" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>
+                My Profile ({loggedInCustomer.name})
+              </Link>
+            ) : (
+              <Link to="/login" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>
+                Customer Account / Login
+              </Link>
+            )}
+            <div className="mobile-drawer-divider" />
+            <Link to="/vendor" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>
+              Vendor Portal
+            </Link>
+            <Link to="/admin" className="mobile-nav-link admin-link" onClick={() => setMobileMenuOpen(false)}>
+              Admin Portal
+            </Link>
           </nav>
         </div>
       )}

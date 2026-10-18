@@ -13,6 +13,7 @@ import VendorLogin from './pages/vendor/VendorLogin';
 import VendorRegister from './pages/vendor/VendorRegister';
 import VendorDashboard from './pages/vendor/VendorDashboard';
 import CustomerProfile from './pages/CustomerProfile';
+import Login from './pages/Login';
 import ProductDetails from './pages/ProductDetails';
 import Wishlist from './pages/Wishlist';
 import AboutUs from './pages/AboutUs';
@@ -25,7 +26,14 @@ function App() {
   const [cartItems, setCartItems] = useState([]);
   const [toastMessage, setToastMessage] = useState(null);
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
-  const [vendorUser, setVendorUser] = useState(null);
+  const [vendorUser, setVendorUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ecshopping_current_vendor');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const [loggedInCustomer, setLoggedInCustomerState] = useState(() => getCurrentCustomer());
 
   const handleCustomerLogin = (customer) => {
@@ -36,6 +44,19 @@ function App() {
   const handleCustomerLogout = () => {
     setCurrentCustomer(null);
     setLoggedInCustomerState(null);
+  };
+
+  const handleVendorLogin = (vendor) => {
+    setVendorUser(vendor);
+    if (vendor) {
+      localStorage.setItem('ecshopping_current_vendor', JSON.stringify(vendor));
+    } else {
+      localStorage.removeItem('ecshopping_current_vendor');
+    }
+  };
+
+  const handleVendorLogout = () => {
+    handleVendorLogin(null);
   };
 
   useEffect(() => {
@@ -98,15 +119,21 @@ function App() {
           {/* Vendor Routes */}
           <Route 
             path="/vendor/register" 
-            element={<VendorRegister />} 
+            element={
+              vendorUser ? (
+                <VendorDashboard vendor={vendorUser} onLogout={handleVendorLogout} />
+              ) : (
+                <VendorLogin onLogin={handleVendorLogin} initialSignUp={true} />
+              )
+            } 
           />
           <Route 
             path="/vendor/*" 
             element={
               vendorUser ? (
-                <VendorDashboard vendor={vendorUser} onLogout={() => setVendorUser(null)} />
+                <VendorDashboard vendor={vendorUser} onLogout={handleVendorLogout} />
               ) : (
-                <VendorLogin onLogin={(user) => setVendorUser(user)} />
+                <VendorLogin onLogin={handleVendorLogin} />
               )
             } 
           />
@@ -144,6 +171,12 @@ function App() {
                       <CustomerProfile 
                         loggedInCustomer={loggedInCustomer} 
                         onLogout={handleCustomerLogout} 
+                      />
+                    } />
+                    <Route path="/login" element={
+                      <Login 
+                        onCustomerLogin={handleCustomerLogin} 
+                        loggedInCustomer={loggedInCustomer} 
                       />
                     } />
                     <Route path="/product/:id" element={<ProductDetails onAddToCart={handleAddToCart} />} />
