@@ -15,6 +15,12 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
+if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+  console.log(`✅ Cloudinary configured (cloud: ${process.env.CLOUDINARY_CLOUD_NAME})`);
+} else {
+  console.warn('⚠️ Cloudinary not configured — uploads will fall back to inline data URIs.');
+}
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB maximum file size
@@ -51,6 +57,14 @@ const transporter = nodemailer.createTransport({
     pass: process.env.SMTP_PASSWORD
   }
 });
+
+if (process.env.SMTP_EMAIL && process.env.SMTP_PASSWORD) {
+  transporter.verify()
+    .then(() => console.log(`✅ SMTP connected as ${process.env.SMTP_EMAIL}`))
+    .catch((err) => console.error('❌ SMTP connection failed:', err.message));
+} else {
+  console.warn('⚠️ SMTP not configured (SMTP_EMAIL / SMTP_PASSWORD) — emails will be skipped.');
+}
 
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
