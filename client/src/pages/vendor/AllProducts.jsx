@@ -29,7 +29,8 @@ import {
   getProducts, 
   deleteProduct, 
   updateProduct, 
-  toggleProductStock 
+  toggleProductStock,
+  syncProductsFromServer
 } from '../../utils/storage';
 import './AllProducts.css';
 
@@ -76,7 +77,12 @@ export default function AllProducts({ vendor, onProductsUpdated }) {
   };
 
   useEffect(() => {
-    loadVendorProducts();
+    let cancelled = false;
+    (async () => {
+      await syncProductsFromServer();
+      if (!cancelled) loadVendorProducts();
+    })();
+    return () => { cancelled = true; };
   }, [vendor?.id]);
 
   // Load categories for filter

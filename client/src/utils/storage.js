@@ -1,9 +1,63 @@
-// Mock Storage Utility using localStorage
+// Storage utility: localStorage cache backed by the TiDB server for
+// products and orders. Reads stay synchronous (from the cache); writes
+// update the cache immediately and push to the server in the background.
+
+import api from './api';
 
 const VENDORS_KEY = 'ecshopping_vendors';
 const PRODUCTS_KEY = 'ecshopping_products';
 const CUSTOMERS_KEY = 'ecshopping_customers';
 const ORDERS_KEY = 'ecshopping_orders';
+
+// Fire-and-forget server push; never blocks the UI.
+const pushToServer = (operation) => {
+  Promise.resolve()
+    .then(operation)
+    .catch((err) => console.warn('[api] background sync failed:', err.message));
+};
+
+const normalizeProduct = (p) => ({
+  id: p.id,
+  vendorId: p.vendorId || p.vendor_id || null,
+  vendorName: p.vendorName || p.vendor_name || '',
+  title: p.title || p.name || 'Untitled product',
+  name: p.name || p.title || 'Untitled product',
+  description: p.description || '',
+  category: p.category || 'General',
+  price: Number(p.price) || 0,
+  strikePrice: p.strikePrice != null && p.strikePrice !== '' ? Number(p.strikePrice) : null,
+  unit: p.unit || '',
+  image: p.image || '',
+  stockStatus: p.stockStatus || (p.inStock === false ? 'out_of_stock' : 'in_stock'),
+  inStock: (p.stockStatus || 'in_stock') !== 'out_of_stock',
+  status: p.status || 'pending',
+  createdAt: p.createdAt || new Date().toISOString()
+});
+
+const normalizeVendor = (v) => ({
+  id: v.id,
+  name: v.name,
+  email: v.email,
+  phone: v.phone || '',
+  status: v.status || 'pending',
+  directSelling: v.directSelling != null ? Boolean(v.directSelling) : Boolean(v.direct_selling),
+  createdAt: v.createdAt || v.created_at || new Date().toISOString()
+});
+
+const normalizeOrder = (o) => {
+  let shippingAddress = o.shippingAddress;
+  if (typeof shippingAddress === 'string') {
+    try { shippingAddress = JSON.parse(shippingAddress); } catch { shippingAddress = null; }
+  }
+  return {
+    ...o,
+    shippingAddress,
+    items: Array.isArray(o.items) ? o.items : [],
+    totalAmount: o.totalAmount != null ? Number(o.totalAmount) : Number(o.total) || 0,
+    status: o.status || 'Processing',
+    date: o.date || new Date().toISOString()
+  };
+};
 
 // Initialize mock data if empty
 export const initStorage = () => {
@@ -41,12 +95,14 @@ export const updateVendorStatus = (id, status) => {
   const vendors = getVendors();
   const updated = vendors.map(v => v.id === id ? { ...v, status } : v);
   localStorage.setItem(VENDORS_KEY, JSON.stringify(updated));
+  pushToServer(() => api.updateVendorStatus(id, status));
 };
 
 export const toggleVendorDirectSelling = (id, directSelling) => {
   const vendors = getVendors();
   const updated = vendors.map(v => v.id === id ? { ...v, directSelling } : v);
   localStorage.setItem(VENDORS_KEY, JSON.stringify(updated));
+  pushToServer(() => api.updateVendorDirectSelling(id, directSelling));
 };
 
 export const deleteVendor = (id) => {
@@ -72,19 +128,22 @@ export const getProducts = () => {
 
 export const addProduct = (vendor, productData) => {
   const products = getProducts();
-  const isDirectSelling = vendor.directSelling === true;
-  
+
   const newProduct = {
     ...productData,
     id: 'p' + Date.now(),
     vendorId: vendor.id,
     vendorName: vendor.name,
-    status: isDirectSelling ? 'approved' : 'pending',
+    status: 'pending', // Every new listing awaits admin approval
     createdAt: new Date().toISOString()
   };
-  
+
   products.push(newProduct);
   localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
+
+  // Persist to the server so admins can review it from any device.
+  pushToServer(() => api.createProduct(newProduct));
+
   return newProduct;
 };
 
@@ -92,12 +151,14 @@ export const updateProductStatus = (id, status) => {
   const products = getProducts();
   const updated = products.map(p => p.id === id ? { ...p, status } : p);
   localStorage.setItem(PRODUCTS_KEY, JSON.stringify(updated));
+  pushToServer(() => api.updateProductStatus(id, status));
 };
 
 export const deleteProduct = (id) => {
   const products = getProducts();
   const updated = products.filter(p => p.id !== id);
   localStorage.setItem(PRODUCTS_KEY, JSON.stringify(updated));
+  pushToServer(() => api.deleteProduct(id));
   return updated;
 };
 
@@ -105,6 +166,7 @@ export const updateProduct = (id, updatedData) => {
   const products = getProducts();
   const updated = products.map(p => p.id === id ? { ...p, ...updatedData } : p);
   localStorage.setItem(PRODUCTS_KEY, JSON.stringify(updated));
+  pushToServer(() => api.updateProduct(id, updatedData));
   return updated.find(p => p.id === id);
 };
 
@@ -116,6 +178,7 @@ export const toggleProductStock = (id) => {
   const newStatus = newInStock ? 'in_stock' : 'out_of_stock';
   const updated = products.map(p => p.id === id ? { ...p, inStock: newInStock, stockStatus: newStatus } : p);
   localStorage.setItem(PRODUCTS_KEY, JSON.stringify(updated));
+  pushToServer(() => api.updateProduct(id, { stockStatus: newStatus }));
   return { ...target, inStock: newInStock, stockStatus: newStatus };
 };
 
@@ -214,6 +277,10 @@ export const addOrder = (orderData) => {
   };
   orders.unshift(newOrder); // newest first
   localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
+
+  // Persist the order (routes it to the relevant vendors server-side).
+  pushToServer(() => api.createOrder(newOrder));
+
   return newOrder;
 };
 
@@ -221,5 +288,65 @@ export const updateOrderStatus = (orderId, newStatus) => {
   const orders = getOrders();
   const updated = orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o);
   localStorage.setItem(ORDERS_KEY, JSON.stringify(updated));
+  pushToServer(() => api.updateOrderStatus(orderId, newStatus));
   return updated;
+};
+
+// --- Server synchronisation ---
+
+/** Pull every product from the server into the local cache. */
+export const syncProductsFromServer = async () => {
+  try {
+    const data = await api.getProducts();
+    if (data?.success && Array.isArray(data.products)) {
+      const normalized = data.products.map(normalizeProduct);
+      localStorage.setItem(PRODUCTS_KEY, JSON.stringify(normalized));
+      return normalized;
+    }
+  } catch (err) {
+    console.warn('[api] product sync skipped:', err.message);
+  }
+  return getProducts();
+};
+
+/** Pull every vendor from the server into the local cache. */
+export const syncVendorsFromServer = async () => {
+  try {
+    const data = await api.getVendors();
+    if (data?.success && Array.isArray(data.vendors)) {
+      const normalized = data.vendors.map(normalizeVendor);
+      localStorage.setItem(VENDORS_KEY, JSON.stringify(normalized));
+      return normalized;
+    }
+  } catch (err) {
+    console.warn('[api] vendor sync skipped:', err.message);
+  }
+  return getVendors();
+};
+
+/** Pull orders from the server into the local cache (optionally filtered). */
+export const syncOrdersFromServer = async (params = {}) => {
+  try {
+    const data = await api.getOrders(params);
+    if (data?.success && Array.isArray(data.orders)) {
+      const normalized = data.orders.map(normalizeOrder);
+      if (Object.keys(params).length === 0) {
+        localStorage.setItem(ORDERS_KEY, JSON.stringify(normalized));
+      }
+      return normalized;
+    }
+  } catch (err) {
+    console.warn('[api] order sync skipped:', err.message);
+  }
+  return getOrders();
+};
+
+/** Refresh vendors, products and orders from the server. */
+export const syncFromServer = async () => {
+  const [vendors, products, orders] = await Promise.all([
+    syncVendorsFromServer(),
+    syncProductsFromServer(),
+    syncOrdersFromServer()
+  ]);
+  return { vendors, products, orders };
 };

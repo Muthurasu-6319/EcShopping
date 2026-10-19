@@ -1,300 +1,472 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { CheckCircle } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ShoppingBag, Truck, Banknote, Tag, ArrowRight, Lock, CheckCircle2 } from 'lucide-react';
 import { addCustomer, addOrder } from '../utils/storage';
+import {
+  formatINR,
+  computeTotals,
+  validateCoupon,
+  DELIVERY_METHODS
+} from '../utils/pricing';
+import { useCart } from '../context/CartContext';
+import { PageHero } from '../components/ui/PageHeader';
+import { EmptyState } from '../components/ui/States';
+import PhonePe from '../components/checkout/PhonePe';
+import PaymentStates from '../components/checkout/PaymentStates';
+import { initiatePhonePePayment } from '../components/checkout/paymentGateway';
 import './Checkout.css';
+
+const DELIVERY_ICONS = { standard: Truck, express: Truck };
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_RE = /^[6-9]\d{9}$/;
+const PIN_RE = /^\d{6}$/;
 
 export default function Checkout({ cartItems, clearCart, loggedInCustomer, onCustomerLogin }) {
   const navigate = useNavigate();
-  const [orderPlaced, setOrderPlaced] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  
-  const [firstName, setFirstName] = useState(loggedInCustomer ? loggedInCustomer.name.split(' ')[0] : '');
-  const [lastName, setLastName] = useState(loggedInCustomer ? loggedInCustomer.name.split(' ').slice(1).join(' ') : '');
-  const [email, setEmail] = useState(loggedInCustomer ? loggedInCustomer.email : '');
-  const [phone, setPhone] = useState(loggedInCustomer ? loggedInCustomer.phone || '' : '');
-  const [address, setAddress] = useState(loggedInCustomer ? loggedInCustomer.address || '' : '');
-  const [city, setCity] = useState(loggedInCustomer ? loggedInCustomer.city || '' : '');
-  const [state, setState] = useState(loggedInCustomer ? loggedInCustomer.state || 'TN' : 'TN');
-  const [postcode, setPostcode] = useState(loggedInCustomer ? loggedInCustomer.postcode || '' : '');
+  const ctx = useCart();
+  const items = ctx?.items ?? cartItems ?? [];
+
+  const [firstName, setFirstName] = useState(loggedInCustomer?.name?.split(' ')[0] || '');
+  const [lastName, setLastName] = useState(loggedInCustomer?.name?.split(' ').slice(1).join(' ') || '');
+  const [email, setEmail] = useState(loggedInCustomer?.email || '');
+  const [phone, setPhone] = useState(loggedInCustomer?.phone || '');
+  const [street, setStreet] = useState(loggedInCustomer?.address || '');
+  const [city, setCity] = useState(loggedInCustomer?.city || '');
+  const [stateCode, setStateCode] = useState(loggedInCustomer?.state || 'TN');
+  const [postcode, setPostcode] = useState(loggedInCustomer?.postcode || '');
+
+  const [deliveryId, setDeliveryId] = useState('standard');
+  const [couponInput, setCouponInput] = useState('');
+  const [couponResult, setCouponResult] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState('cod');
-  const [autoCredentials, setAutoCredentials] = useState(null);
+  const [payState, setPayState] = useState('idle');
+  const [payInfo, setPayInfo] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState({});
 
-  const subtotal = cartItems.reduce((total, item) => {
-    const priceStr = item.price.toString().replace(/[^0-9.-]+/g,"");
-    const price = parseFloat(priceStr.split('-')[0]) || 0;
-    return total + (price * item.quantity);
-  }, 0);
-  
-  const shipping = subtotal > 0 ? 50 : 0;
-  const total = subtotal + shipping;
+  const totals = useMemo(
+    () => computeTotals({ items, couponResult, deliveryMethodId: deliveryId }),
+    [items, couponResult, deliveryId]
+  );
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsLoading(true);
-    
-    const fullName = `${firstName} ${lastName}`.trim();
-    let currentCustomer = loggedInCustomer;
+  if (items.length === 0) {
+    return (
+      <>
+        <PageHero title="Checkout" subtitle="Secure checkout in a few short steps." crumbs={[{ label: 'Cart', to: '/cart' }, { label: 'Checkout' }]} />
+        <section className="section">
+          <div className="container">
+            <EmptyState
+              icon={<ShoppingBag size={30} />}
+              title="Your cart is empty"
+              text="Add a few products before heading to checkout."
+              actions={
+                <>
+                  <Link to="/shop" className="btn btn-primary">Browse the shop <ArrowRight size={16} /></Link>
+                  <Link to="/cart" className="btn btn-ghost">Back to cart</Link>
+                </>
+              }
+            />
+          </div>
+        </section>
+      </>
+    );
+  }
 
-    // If the customer is not currently logged in, auto-create account or auto-login if exists
+  const applyCoupon = (event) => {
+    event.preventDefault();
+    const result = validateCoupon(couponInput, totals.subtotal);
+    setCouponResult(result);
+  };
+
+  const clearCoupon = () => {
+    setCouponInput('');
+    setCouponResult(null);
+  };
+
+  const validate = () => {
+    const next = {};
+    if (!firstName.trim()) next.firstName = 'Enter your first name.';
+    if (!lastName.trim()) next.lastName = 'Enter your last name.';
+    if (!EMAIL_RE.test(email.trim())) next.email = 'Enter a valid email address.';
+    if (!PHONE_RE.test(phone.trim())) next.phone = 'Enter a valid 10-digit Indian mobile number.';
+    if (!street.trim()) next.street = 'Enter your street address.';
+    if (!city.trim()) next.city = 'Enter your town or city.';
+    if (!PIN_RE.test(postcode.trim())) next.postcode = 'Enter a valid 6-digit PIN code.';
+    return next;
+  };
+
+  const placeOrder = async (event) => {
+    event.preventDefault();
+    const found = validate();
+    setErrors(found);
+    if (Object.keys(found).length > 0) {
+      document.querySelector('.field-error')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      return;
+    }
+
+    setSubmitting(true);
+    const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
+
+    /* Existing auto-account behaviour: create or log in the customer silently. */
+    let autoCredentials = null;
     if (!loggedInCustomer) {
-      const generatedPassword = Math.random().toString(36).slice(-8) + 'A1!'; // Basic complex password
-      
-      const customerResult = addCustomer({
+      const generatedPassword = Math.random().toString(36).slice(-8) + 'A1!';
+      const created = addCustomer({
         name: fullName,
-        email: email,
-        phone: phone,
-        address: address,
-        city: city,
-        state: state,
-        postcode: postcode,
+        email: email.trim(),
+        phone: phone.trim(),
+        address: street.trim(),
+        city: city.trim(),
+        state: stateCode,
+        postcode: postcode.trim(),
         password: generatedPassword
       });
 
-      if (customerResult.success) {
-        currentCustomer = customerResult.customer;
-        onCustomerLogin(currentCustomer);
-        setAutoCredentials({
-          email: email,
-          password: generatedPassword,
-          isNew: true
-        });
-
+      if (created?.success && created.customer) {
+        onCustomerLogin?.(created.customer);
+        autoCredentials = { email: email.trim(), password: generatedPassword, isNew: true };
         try {
-          // Send welcome email via our backend
           const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
           await fetch(`${apiUrl}/api/send-welcome`, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              name: fullName,
-              email: email,
-              password: generatedPassword
-            })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: fullName, email: email.trim(), password: generatedPassword })
           });
-        } catch (err) {
-          console.error("Email sending notice:", err);
+        } catch {
+          /* Backend email service unavailable in this release — account still works locally. */
         }
-      } else if (customerResult.customer) {
-        // Customer already exists, auto-login them
-        currentCustomer = customerResult.customer;
-        onCustomerLogin(currentCustomer);
-        setAutoCredentials({
-          email: email,
-          isNew: false
-        });
+      } else if (created?.customer) {
+        onCustomerLogin?.(created.customer);
+        autoCredentials = { email: email.trim(), isNew: false };
       }
     }
 
-    // Save the order with vendor tagging and full shipping info
-    const placedOrder = addOrder({
+    /* PhonePe handoff — the order is not created if the payment fails. */
+    let payment = null;
+    if (paymentMethod === 'phonepe') {
+      setPayState('processing');
+      setPayInfo(null);
+      payment = await initiatePhonePePayment({
+        orderId: `DRAFT-${Date.now()}`,
+        amount: totals.total
+      });
+      setPayInfo(payment);
+
+      if (payment.status === 'failed') {
+        setPayState('failed');
+        setSubmitting(false);
+        return;
+      }
+      setPayState(payment.status === 'pending' ? 'pending' : 'success');
+    }
+
+    const order = addOrder({
       customerName: fullName,
-      customerEmail: email,
-      customerPhone: phone,
+      customerEmail: email.trim(),
+      customerPhone: phone.trim(),
       shippingAddress: {
-        street: address,
-        city: city,
-        state: state,
-        postcode: postcode
+        street: street.trim(),
+        city: city.trim(),
+        state: stateCode,
+        postcode: postcode.trim()
       },
-      items: cartItems.map(item => ({
-        ...item,
-        vendorId: item.vendorId || (item.soldBy === 'RAMESH FARMS' || item.seller === 'RAMESH FARMS' ? 'v1' : (item.vendorId || 'v1')),
-        soldBy: item.soldBy || item.seller || item.vendorName || 'EcShopping Partner'
+      email: email.trim(),
+      items: items.map((item) => ({
+        id: item.id,
+        title: item.title,
+        price: item.price,
+        image: item.image,
+        variant: item.variant || null,
+        quantity: item.quantity,
+        seller: item.seller || item.soldBy || 'EcShopping Seller',
+        vendorId: item.vendorId || null
       })),
-      subtotal: subtotal,
-      shipping: shipping,
-      totalAmount: total,
-      paymentMethod: paymentMethod
+      subtotal: totals.subtotal,
+      discount: totals.discount,
+      shipping: totals.shipping,
+      total: totals.total,
+      totalAmount: totals.total,
+      couponCode: couponResult?.ok ? couponResult.coupon.code : null,
+      deliveryMethod: deliveryId,
+      paymentMethod,
+      paymentStatus: paymentMethod === 'phonepe' ? (payment.status === 'pending' ? 'pending' : 'paid') : 'pending',
+      paymentReference: payment?.reference || null,
+      paymentNote: payment?.message || null
     });
 
-    setOrderPlaced(true);
-    setIsLoading(false);
-    setTimeout(() => {
-      clearCart();
-      navigate('/profile');
-    }, 3500);
+    try {
+      localStorage.setItem('ecshopping_last_order', JSON.stringify(order));
+    } catch {
+      /* storage unavailable — confirmation page falls back to route state */
+    }
+
+    clearCart?.();
+    setSubmitting(false);
+    navigate(`/order-confirmation/${order.id}`, { state: { order, autoCredentials, payment } });
   };
 
-  if (orderPlaced) {
-    return (
-      <div className="checkout-success">
-        <CheckCircle size={80} color="#4caf50" />
-        <h2>Order Placed Successfully!</h2>
-        <p>Thank you for shopping with EcShopping, <strong>{firstName || 'Customer'}</strong>.</p>
-        {autoCredentials?.isNew && (
-          <div className="auto-account-notice" style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '15px 20px', borderRadius: '8px', margin: '20px auto', maxWidth: '480px', textAlign: 'left' }}>
-            <h4 style={{ margin: '0 0 8px 0', color: '#166534' }}>🎉 Account Created & Logged In!</h4>
-            <p style={{ margin: '0 0 4px 0', fontSize: '14px', color: '#15803d' }}>
-              We've created your EcShopping account. Login details have been sent to <strong>{autoCredentials.email}</strong>.
-            </p>
-            <p style={{ margin: '0', fontSize: '13px', color: '#4b5563' }}>
-              Temporary password: <code style={{ background: '#e2e8f0', padding: '2px 6px', borderRadius: '4px' }}>{autoCredentials.password}</code>
-            </p>
-          </div>
-        )}
-        <p className="redirect-text" style={{ color: '#64748b', fontSize: '14px' }}>
-          Redirecting to your Order History in your Profile...
-        </p>
-      </div>
-    );
-  }
+  const setPayment = (method) => {
+    setPaymentMethod(method);
+    if (method !== 'phonepe') {
+      setPayState('idle');
+      setPayInfo(null);
+    }
+  };
 
-  if (cartItems.length === 0) {
-    return (
-      <div className="checkout-page container">
-        <h2>Your cart is empty. Please add items to proceed.</h2>
-      </div>
-    );
-  }
+  const fieldError = (key) => (errors[key] ? <p className="field-error" role="alert">{errors[key]}</p> : null);
 
   return (
-    <div className="checkout-page">
-      <div className="container">
-        <h1 className="page-title">Checkout</h1>
-        
-        <form className="checkout-layout" onSubmit={handleSubmit}>
-          <div className="billing-details">
-            <h2>Billing Details</h2>
-            <div className="form-row">
-              <div className="form-group">
-                <label>First Name *</label>
-                <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)} required />
-              </div>
-              <div className="form-group">
-                <label>Last Name *</label>
-                <input type="text" value={lastName} onChange={e => setLastName(e.target.value)} required />
-              </div>
-            </div>
-            <div className="form-group">
-              <label>Company Name (Optional)</label>
-              <input type="text" />
-            </div>
-            <div className="form-group">
-              <label>Country / Region *</label>
-              <select required>
-                <option>India</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Street Address *</label>
-              <input 
-                type="text" 
-                placeholder="House number and street name" 
-                value={address} 
-                onChange={e => setAddress(e.target.value)} 
-                required 
-              />
-            </div>
-            <div className="form-group">
-              <label>Town / City *</label>
-              <input 
-                type="text" 
-                value={city} 
-                onChange={e => setCity(e.target.value)} 
-                required 
-              />
-            </div>
-            <div className="form-group">
-              <label>State / County *</label>
-              <select value={state} onChange={e => setState(e.target.value)} required>
-                <option value="TN">Tamil Nadu</option>
-                <option value="KA">Karnataka</option>
-                <option value="KL">Kerala</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Postcode / ZIP *</label>
-              <input 
-                type="text" 
-                value={postcode} 
-                onChange={e => setPostcode(e.target.value)} 
-                required 
-              />
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Phone *</label>
-                <input 
-                  type="tel" 
-                  value={phone} 
-                  onChange={e => setPhone(e.target.value)} 
-                  required 
-                />
-              </div>
-              <div className="form-group">
-                <label>Email Address *</label>
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} required />
-              </div>
-            </div>
-          </div>
+    <>
+      <PageHero
+        title="Checkout"
+        subtitle={`${items.length} item${items.length === 1 ? '' : 's'} · ${formatINR(totals.total)} to pay`}
+        crumbs={[{ label: 'Cart', to: '/cart' }, { label: 'Checkout' }]}
+      />
 
-          <div className="order-summary">
-            <h2>Your Order</h2>
-            <div className="order-box">
-              <div className="order-row header">
-                <span>Product</span>
-                <span>Subtotal</span>
+      <form className="container checkout-layout" onSubmit={placeOrder} noValidate>
+        <div className="checkout-main">
+          {/* 1 — Contact */}
+          <section className="panel co-section">
+            <header className="co-head">
+              <span className="co-num">1</span>
+              <div>
+                <h2>Contact details</h2>
+                <p className="tiny muted">We send order updates to these details.</p>
               </div>
-              
-              {cartItems.map((item) => {
-                const priceStr = item.price.toString().replace(/[^0-9.-]+/g,"");
-                const price = parseFloat(priceStr.split('-')[0]) || 0;
+            </header>
+
+            <div className="form-grid form-grid-2">
+              <label className="field">
+                <span className="field-label">First name *</span>
+                <input className="input" type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} autoComplete="given-name" />
+                {fieldError('firstName')}
+              </label>
+              <label className="field">
+                <span className="field-label">Last name *</span>
+                <input className="input" type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} autoComplete="family-name" />
+                {fieldError('lastName')}
+              </label>
+              <label className="field">
+                <span className="field-label">Email address *</span>
+                <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="you@example.com" />
+                {fieldError('email')}
+              </label>
+              <label className="field">
+                <span className="field-label">Mobile number *</span>
+                <input className="input" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" placeholder="98765 43210" />
+                {fieldError('phone')}
+              </label>
+            </div>
+
+            {!loggedInCustomer && (
+              <p className="notice notice-info co-account-note">
+                <CheckCircle2 size={15} /> New here? We will create a basic account automatically so you can track this order.
+              </p>
+            )}
+          </section>
+
+          {/* 2 — Address */}
+          <section className="panel co-section">
+            <header className="co-head">
+              <span className="co-num">2</span>
+              <div>
+                <h2>Shipping address</h2>
+                <p className="tiny muted">Where should the seller send this order?</p>
+              </div>
+            </header>
+
+            <div className="form-grid">
+              <label className="field">
+                <span className="field-label">Street address *</span>
+                <input className="input" type="text" value={street} onChange={(e) => setStreet(e.target.value)} autoComplete="street-address" placeholder="House number and street name" />
+                {fieldError('street')}
+              </label>
+            </div>
+
+            <div className="form-grid form-grid-2">
+              <label className="field">
+                <span className="field-label">Town / city *</span>
+                <input className="input" type="text" value={city} onChange={(e) => setCity(e.target.value)} autoComplete="address-level2" />
+                {fieldError('city')}
+              </label>
+              <label className="field">
+                <span className="field-label">State *</span>
+                <select className="select" value={stateCode} onChange={(e) => setStateCode(e.target.value)}>
+                  <option value="TN">Tamil Nadu</option>
+                  <option value="KA">Karnataka</option>
+                  <option value="KL">Kerala</option>
+                  <option value="AP">Andhra Pradesh</option>
+                  <option value="TS">Telangana</option>
+                  <option value="MH">Maharashtra</option>
+                  <option value="DL">Delhi</option>
+                </select>
+              </label>
+              <label className="field">
+                <span className="field-label">PIN code *</span>
+                <input className="input" type="text" inputMode="numeric" maxLength={6} value={postcode} onChange={(e) => setPostcode(e.target.value.replace(/\D/g, ''))} autoComplete="postal-code" placeholder="600001" />
+                {fieldError('postcode')}
+              </label>
+            </div>
+          </section>
+
+          {/* 3 — Delivery */}
+          <section className="panel co-section">
+            <header className="co-head">
+              <span className="co-num">3</span>
+              <div>
+                <h2>Delivery method</h2>
+                <p className="tiny muted">Speed and cost — pick what suits this order.</p>
+              </div>
+            </header>
+
+            <div className="co-delivery-list">
+              {DELIVERY_METHODS.map((method) => {
+                const Icon = DELIVERY_ICONS[method.id] || Truck;
+                const freeByCoupon = couponResult?.ok && couponResult.freeShipping;
+                const price = method.freeOver && totals.subtotal >= method.freeOver ? 0 : method.price;
                 return (
-                  <div className="order-row item" key={item.id}>
-                    <span>{item.title || item.name} <strong>x {item.quantity}</strong></span>
-                    <span>₹{(price * item.quantity).toFixed(2)}</span>
-                  </div>
+                  <label key={method.id} className={`co-delivery ${deliveryId === method.id ? 'selected' : ''}`}>
+                    <input
+                      type="radio"
+                      name="delivery"
+                      checked={deliveryId === method.id}
+                      onChange={() => setDeliveryId(method.id)}
+                    />
+                    <Icon size={19} />
+                    <span className="co-delivery-main">
+                      <strong>{method.label}</strong>
+                      <small>{method.detail}</small>
+                    </span>
+                    <span className="co-delivery-price">
+                      {price === 0 || freeByCoupon ? <em>FREE</em> : formatINR(price)}
+                    </span>
+                  </label>
                 );
               })}
-              
-              <div className="order-row subtotal">
-                <span>Subtotal</span>
-                <span>₹{subtotal.toFixed(2)}</span>
-              </div>
-              <div className="order-row shipping">
-                <span>Shipping</span>
-                <span>₹{shipping.toFixed(2)}</span>
-              </div>
-              <div className="order-row total">
-                <span>Total</span>
-                <span>₹{total.toFixed(2)}</span>
-              </div>
-
-              <div className="payment-methods">
-                <label className="payment-option">
-                  <input 
-                    type="radio" 
-                    name="payment" 
-                    value="cod" 
-                    checked={paymentMethod === 'cod'} 
-                    onChange={e => setPaymentMethod(e.target.value)} 
-                  />
-                  <span>Cash on Delivery</span>
-                </label>
-                <div className="payment-desc">Pay with cash upon delivery.</div>
-                
-                <label className="payment-option">
-                  <input 
-                    type="radio" 
-                    name="payment" 
-                    value="upi" 
-                    checked={paymentMethod === 'upi'} 
-                    onChange={e => setPaymentMethod(e.target.value)} 
-                  />
-                  <span>UPI / Cards</span>
-                </label>
-              </div>
-
-              <button type="submit" className="btn-place-order" disabled={isLoading}>
-                {isLoading ? 'Processing...' : 'Place Order'}
-              </button>
             </div>
+          </section>
+
+          {/* 4 — Payment */}
+          <section className="panel co-section">
+            <header className="co-head">
+              <span className="co-num">4</span>
+              <div>
+                <h2>Payment</h2>
+                <p className="tiny muted">Choose how you would like to pay for this order.</p>
+              </div>
+            </header>
+
+            <div className="co-pay-list">
+              <PhonePe
+                selected={paymentMethod === 'phonepe'}
+                onSelect={setPayment}
+                amountLabel={formatINR(totals.total)}
+              />
+
+              <label className={`co-pay-option ${paymentMethod === 'cod' ? 'selected' : ''}`}>
+                <input type="radio" name="payment" checked={paymentMethod === 'cod'} onChange={() => setPayment('cod')} />
+                <Banknote size={19} />
+                <span className="co-pay-main">
+                  <strong>Cash on delivery</strong>
+                  <small>Pay the courier when your order arrives.</small>
+                </span>
+              </label>
+            </div>
+
+            {paymentMethod === 'phonepe' && (
+              <PaymentStates
+                state={payState}
+                message={payInfo?.message}
+                reference={payInfo?.reference}
+                onRetry={() => {
+                  setPayState('idle');
+                  setPayInfo(null);
+                }}
+                onCancel={() => setPayment('cod')}
+              />
+            )}
+          </section>
+        </div>
+
+        {/* ---------- Summary ---------- */}
+        <aside className="checkout-summary" aria-label="Order summary">
+          <div className="panel co-summary-panel">
+            <h2>Your order</h2>
+
+            <ul className="co-items">
+              {items.map((item) => (
+                <li key={`${item.id}::${item.variant || 'default'}`}>
+                  <img src={item.image} alt="" width="48" height="48" />
+                  <span className="co-item-name">
+                    {item.title}
+                    {item.variant && <small> · {item.variant}</small>}
+                    <small>Qty {item.quantity}</small>
+                  </span>
+                  <span className="co-item-price">{formatINR((Number(item.price) || 0) * item.quantity)}</span>
+                </li>
+              ))}
+            </ul>
+
+            {/* Coupon */}
+            <div className="co-coupon">
+              <label className="sr-only" htmlFor="coupon-code">Coupon code</label>
+              <div className="co-coupon-row">
+                <Tag size={16} />
+                <input
+                  id="coupon-code"
+                  type="text"
+                  placeholder="Coupon code"
+                  value={couponInput}
+                  onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                  disabled={couponResult?.ok}
+                />
+                {couponResult?.ok ? (
+                  <button type="button" className="btn btn-sm btn-ghost" onClick={clearCoupon}>Remove</button>
+                ) : (
+                  <button type="button" className="btn btn-sm btn-outline" onClick={applyCoupon}>Apply</button>
+                )}
+              </div>
+              {couponResult && (
+                <p className={`co-coupon-msg ${couponResult.ok ? 'ok' : 'err'}`} role="status">
+                  {couponResult.message}
+                </p>
+              )}
+            </div>
+
+            <div className="summary-divider" />
+
+            <div className="summary-row">
+              <span>Subtotal</span>
+              <span>{formatINR(totals.subtotal)}</span>
+            </div>
+            {totals.discount > 0 && (
+              <div className="summary-row discount">
+                <span>Coupon ({couponResult?.coupon?.code})</span>
+                <span>−{formatINR(totals.discount)}</span>
+              </div>
+            )}
+            <div className="summary-row">
+              <span>Shipping · {DELIVERY_METHODS.find((m) => m.id === deliveryId)?.label}</span>
+              <span>{totals.shipping === 0 ? 'FREE' : formatINR(totals.shipping)}</span>
+            </div>
+            <div className="summary-row total">
+              <span>Total</span>
+              <span>{formatINR(totals.total)}</span>
+            </div>
+
+            <button type="submit" className="btn btn-primary btn-lg btn-block co-place" disabled={submitting}>
+              {submitting
+                ? (paymentMethod === 'phonepe' ? 'Processing payment…' : 'Placing order…')
+                : `Place order · ${formatINR(totals.total)}`}
+            </button>
+
+            <p className="co-secure-note">
+              <Lock size={13} /> Your details are encrypted and used only to fulfil this order.
+            </p>
           </div>
-        </form>
-      </div>
-    </div>
+        </aside>
+      </form>
+    </>
   );
 }

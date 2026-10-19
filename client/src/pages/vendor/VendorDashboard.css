@@ -917,6 +917,48 @@
   color: #64748b;
 }
 
+/* Customer reviews */
+.vendor-reviews-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.vendor-review-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 18px 20px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+.vendor-review-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.vendor-review-head strong {
+  display: block;
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.vendor-review-stars {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.vendor-review-text {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: #475569;
+}
+
 /* Responsive adjustments */
 @media (max-width: 900px) {
   .vendor-sidebar {

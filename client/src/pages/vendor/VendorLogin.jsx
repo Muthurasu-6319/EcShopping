@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, User, Phone, CheckCircle, ArrowRight } from 'lucide-react';
 import vendorLoginImg from '../../assets/login-page/vendor-login.png';
+import api from '../../utils/api';
 import { verifyVendorLogin, addVendor } from '../../utils/storage';
 import '../Login.css';
 
@@ -25,53 +26,44 @@ export default function VendorLogin({ onLogin, initialSignUp = false }) {
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Handle Vendor Login
+  // Handle Vendor Login (TiDB Cloud backed)
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-      const res = await fetch(`${apiUrl}/api/auth/vendor/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), password })
-      });
-      const data = await res.json();
-
-      if (data.success && data.vendor) {
+      const data = await api.loginVendor(email.trim(), password);
+      if (data?.success && data.vendor) {
         setSuccessMsg('Login successful! Opening Vendor Panel...');
         setTimeout(() => {
           onLogin(data.vendor);
           navigate('/vendor');
         }, 500);
         return;
-      } else if (data.error) {
-        setError(data.error);
-        setLoading(false);
-        return;
       }
     } catch (err) {
-      console.log('Backend API notice:', err.message);
+      // Server unreachable or credentials rejected — try any locally cached
+      // vendor, otherwise surface the server's message (e.g. pending/rejected).
+      const cached = verifyVendorLogin(email.trim(), password);
+      if (cached.success) {
+        setSuccessMsg('Login successful! Opening Vendor Panel...');
+        setTimeout(() => {
+          onLogin(cached.vendor);
+          navigate('/vendor');
+        }, 500);
+        return;
+      }
+      setError(err.message || cached.message || 'Invalid email or password');
+      setLoading(false);
+      return;
     }
 
-    // Fallback verification using storage
-    const result = verifyVendorLogin(email.trim(), password);
+    setError('Invalid email or password');
     setLoading(false);
-
-    if (result.success) {
-      setSuccessMsg('Login successful! Opening Vendor Panel...');
-      setTimeout(() => {
-        onLogin(result.vendor);
-        navigate('/vendor');
-      }, 500);
-    } else {
-      setError(result.message);
-    }
   };
 
-  // Handle Vendor Register (In same UI)
+  // Handle Vendor Register (TiDB Cloud backed — awaits admin approval)
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -84,161 +76,155 @@ export default function VendorLogin({ onLogin, initialSignUp = false }) {
     setLoading(true);
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-      const res = await fetch(`${apiUrl}/api/auth/vendor/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.trim(),
-          email: signUpEmail.trim(),
-          password: signUpPassword,
-          phone: phone.trim()
-        })
+      const data = await api.registerVendor({
+        name: name.trim(),
+        email: signUpEmail.trim(),
+        password: signUpPassword,
+        phone: phone.trim()
       });
-      const data = await res.json();
 
-      if (data.success && data.vendor) {
-        addVendor(data.vendor); // Sync local
+      if (data?.success && data.vendor) {
+        addVendor(data.vendor); // cache the new vendor locally
+        setLoading(false);
+
+        if (data.vendor.status === 'pending') {
+          setIsSignUp(false);
+          setSuccessMsg('Registration submitted! Your seller account is awaiting admin approval.');
+          return;
+        }
+
         setSuccessMsg('Vendor registered successfully! Opening Vendor Panel...');
         setTimeout(() => {
           onLogin(data.vendor);
           navigate('/vendor');
         }, 600);
         return;
-      } else if (data.error) {
-        setError(data.error);
-        setLoading(false);
-        return;
       }
     } catch (err) {
-      console.log('Backend API notice:', err.message);
+      setError(err.message || 'Could not complete registration. Please try again.');
     }
 
-    // Local fallback
-    const newVendor = addVendor({
-      name: name.trim(),
-      email: signUpEmail.trim(),
-      password: signUpPassword,
-      phone: phone.trim(),
-      status: 'approved',
-      directSelling: true
-    });
-
     setLoading(false);
-    setSuccessMsg('Vendor registered successfully! Opening Vendor Panel...');
-    setTimeout(() => {
-      onLogin(newVendor);
-      navigate('/vendor');
-    }, 600);
   };
 
   return (
-    <div className="login-page-wrapper">
-      <div className="login-card-container">
-        {/* Left Side: 3D Vendor Illustration */}
-        <div className="login-illustration-side">
-          <div className="illustration-brand-tag">
-            <span className="brand-dot"></span>
+    <div className="auth-page vendor-auth-page">
+      <div className="auth-card">
+        {/* ---------- Left brand panel ---------- */}
+        <div className="auth-brand-side">
+          <div className="auth-brand-tag">
+            <span className="brand-dot" />
             <span>Vendor Portal</span>
           </div>
 
-          <div className="illustration-visual">
-            <img 
-              src={vendorLoginImg} 
-              alt="Sell on EcShopping" 
-              className="login-side-hero-img" 
-            />
+          <div className="auth-visual">
+            <img src={vendorLoginImg} alt="Sell on EcShopping" className="auth-side-img" />
           </div>
 
-          <div className="illustration-caption">
-            <h3>Sell & Grow with EcShopping</h3>
+          <div className="auth-caption">
+            <h2>Sell &amp; Grow with EcShopping</h2>
             <p>Manage your products, track customer orders, and deliver organic items directly from your farm.</p>
           </div>
         </div>
 
-        {/* Right Side: Vendor Form (Switches between Login and Register in same UI) */}
-        <div className="login-form-side">
-          <div className="form-content-box">
-            <div className="form-header">
-              <h2 className="welcome-title">{isSignUp ? 'Become a Seller :)' : 'Vendor Login :)'}</h2>
-              <p className="welcome-subtitle">
-                {isSignUp 
-                  ? 'Register your business to start listing and selling products 🌿' 
-                  : 'Sign in to manage your products, storefront, and incoming customer orders 📦'}
+        {/* ---------- Right form panel ---------- */}
+        <div className="auth-form-side">
+          <div className="auth-form-box">
+            <header className="auth-form-header">
+              <h1>{isSignUp ? 'Become a seller' : 'Vendor login'}</h1>
+              <p>
+                {isSignUp
+                  ? 'Register your business to start listing and selling products on EcShopping.'
+                  : 'Sign in to manage your products, storefront, and incoming customer orders.'}
               </p>
-            </div>
+            </header>
 
-            {error && <div className="login-alert error-alert">{error}</div>}
-            {successMsg && <div className="login-alert success-alert">{successMsg}</div>}
+            {error && (
+              <div className="auth-alert auth-alert-error" role="alert">
+                {error}
+              </div>
+            )}
+            {successMsg && (
+              <div className="auth-alert auth-alert-success" role="status">
+                {successMsg}
+              </div>
+            )}
 
             {!isSignUp ? (
               /* VENDOR LOGIN FORM */
-              <form onSubmit={handleLoginSubmit} className="auth-form">
-                <div className="input-field-group">
-                  <label htmlFor="vendor-email">Email Address</label>
-                  <div className="input-with-icon">
-                    <Mail size={18} className="field-icon" />
-                    <input 
+              <form onSubmit={handleLoginSubmit} className="auth-form" noValidate>
+                <div className="field">
+                  <label className="field-label" htmlFor="vendor-email">
+                    Email address <span className="req" aria-hidden="true">*</span>
+                  </label>
+                  <div className="auth-input-wrap">
+                    <Mail size={17} className="auth-field-icon" aria-hidden="true" />
+                    <input
                       id="vendor-email"
-                      type="email" 
-                      placeholder="Enter your email"
+                      className="input auth-input"
+                      type="email"
+                      placeholder="vendor@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      required 
+                      required
                     />
-                    {email.includes('@') && <CheckCircle size={18} className="valid-check" />}
+                    {email.includes('@') && (
+                      <CheckCircle size={16} className="auth-valid-check" aria-hidden="true" />
+                    )}
                   </div>
                 </div>
 
-                <div className="input-field-group">
-                  <label htmlFor="vendor-password">Password</label>
-                  <div className="input-with-icon">
-                    <Lock size={18} className="field-icon" />
-                    <input 
+                <div className="field">
+                  <label className="field-label" htmlFor="vendor-password">
+                    Password <span className="req" aria-hidden="true">*</span>
+                  </label>
+                  <div className="auth-input-wrap">
+                    <Lock size={17} className="auth-field-icon" aria-hidden="true" />
+                    <input
                       id="vendor-password"
-                      type={showPassword ? "text" : "password"}
+                      className="input auth-input"
+                      type={showPassword ? 'text' : 'password'}
                       placeholder="Enter your password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      required 
+                      required
                     />
-                    <button 
-                      type="button" 
-                      className="eye-toggle"
+                    <button
+                      type="button"
+                      className="auth-eye-toggle"
                       onClick={() => setShowPassword(!showPassword)}
-                      title={showPassword ? "Hide Password" : "Show Password"}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
                     >
-                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                     </button>
                   </div>
                 </div>
 
-                <div className="form-actions-row">
-                  <label className="remember-me-label">
-                    <input 
-                      type="checkbox" 
-                      checked={rememberMe} 
-                      onChange={(e) => setRememberMe(e.target.checked)} 
+                <div className="auth-actions-row">
+                  <label className="auth-remember">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
                     />
-                    <span>Remember Me</span>
+                    <span>Remember me</span>
                   </label>
-                  <a 
-                    href="#forgot" 
-                    className="forgot-password-link"
-                    onClick={(e) => { e.preventDefault(); alert("Please contact store admin to reset your credentials."); }}
+                  <button
+                    type="button"
+                    className="btn-link"
+                    onClick={() => alert('Please contact the store admin to reset your credentials.')}
                   >
-                    Forgot Password?
-                  </a>
+                    Forgot password?
+                  </button>
                 </div>
 
-                <div className="button-group-dual">
-                  <button type="submit" className="login-primary-btn" disabled={loading}>
-                    <span>{loading ? 'Logging in...' : 'Login to Vendor Panel'}</span>
-                    <ArrowRight size={17} />
+                <div className="auth-buttons">
+                  <button type="submit" className="btn btn-primary" disabled={loading}>
+                    {loading ? 'Logging in…' : 'Login to Vendor Panel'} <ArrowRight size={16} aria-hidden="true" />
                   </button>
-                  <button 
+                  <button
                     type="button"
-                    className="create-account-btn"
+                    className="btn btn-outline"
                     onClick={() => { setIsSignUp(true); setError(''); setSuccessMsg(''); }}
                   >
                     Register as Seller
@@ -246,83 +232,97 @@ export default function VendorLogin({ onLogin, initialSignUp = false }) {
                 </div>
               </form>
             ) : (
-              /* VENDOR REGISTER FORM (Same Card UI) */
-              <form onSubmit={handleRegisterSubmit} className="auth-form">
-                <div className="input-field-group">
-                  <label htmlFor="vendor-reg-name">Name</label>
-                  <div className="input-with-icon">
-                    <User size={18} className="field-icon" />
-                    <input 
+              /* VENDOR REGISTER FORM */
+              <form onSubmit={handleRegisterSubmit} className="auth-form" noValidate>
+                <div className="field">
+                  <label className="field-label" htmlFor="vendor-reg-name">
+                    Business / farm name <span className="req" aria-hidden="true">*</span>
+                  </label>
+                  <div className="auth-input-wrap">
+                    <User size={17} className="auth-field-icon" aria-hidden="true" />
+                    <input
                       id="vendor-reg-name"
-                      type="text" 
-                      placeholder="Enter your name"
+                      className="input auth-input"
+                      type="text"
+                      placeholder="e.g. Ramesh Farms"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      required 
+                      required
                     />
                   </div>
                 </div>
 
-                <div className="input-field-group">
-                  <label htmlFor="vendor-reg-email">Email Address</label>
-                  <div className="input-with-icon">
-                    <Mail size={18} className="field-icon" />
-                    <input 
+                <div className="field">
+                  <label className="field-label" htmlFor="vendor-reg-email">
+                    Email address <span className="req" aria-hidden="true">*</span>
+                  </label>
+                  <div className="auth-input-wrap">
+                    <Mail size={17} className="auth-field-icon" aria-hidden="true" />
+                    <input
                       id="vendor-reg-email"
-                      type="email" 
-                      placeholder="Enter your email"
+                      className="input auth-input"
+                      type="email"
+                      placeholder="vendor@example.com"
                       value={signUpEmail}
                       onChange={(e) => setSignUpEmail(e.target.value)}
-                      required 
+                      required
                     />
-                    {signUpEmail.includes('@') && <CheckCircle size={18} className="valid-check" />}
+                    {signUpEmail.includes('@') && (
+                      <CheckCircle size={16} className="auth-valid-check" aria-hidden="true" />
+                    )}
                   </div>
                 </div>
 
-                <div className="input-field-group">
-                  <label htmlFor="vendor-reg-phone">Phone Number (Optional)</label>
-                  <div className="input-with-icon">
-                    <Phone size={18} className="field-icon" />
-                    <input 
+                <div className="field">
+                  <label className="field-label" htmlFor="vendor-reg-phone">
+                    Phone number <span className="auth-optional">(optional)</span>
+                  </label>
+                  <div className="auth-input-wrap">
+                    <Phone size={17} className="auth-field-icon" aria-hidden="true" />
+                    <input
                       id="vendor-reg-phone"
-                      type="tel" 
-                      placeholder="Enter your phone number"
+                      className="input auth-input"
+                      type="tel"
+                      placeholder="+91 90000 00000"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                     />
                   </div>
                 </div>
 
-                <div className="input-field-group">
-                  <label htmlFor="vendor-reg-password">Password</label>
-                  <div className="input-with-icon">
-                    <Lock size={18} className="field-icon" />
-                    <input 
+                <div className="field">
+                  <label className="field-label" htmlFor="vendor-reg-password">
+                    Password <span className="req" aria-hidden="true">*</span>
+                  </label>
+                  <div className="auth-input-wrap">
+                    <Lock size={17} className="auth-field-icon" aria-hidden="true" />
+                    <input
                       id="vendor-reg-password"
-                      type={showPassword ? "text" : "password"}
-                      placeholder="Enter your password"
+                      className="input auth-input"
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="Create a password"
                       value={signUpPassword}
                       onChange={(e) => setSignUpPassword(e.target.value)}
-                      required 
+                      required
                     />
-                    <button 
-                      type="button" 
-                      className="eye-toggle"
+                    <button
+                      type="button"
+                      className="auth-eye-toggle"
                       onClick={() => setShowPassword(!showPassword)}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
                     >
-                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                     </button>
                   </div>
                 </div>
 
-                <div className="button-group-dual">
-                  <button type="submit" className="login-primary-btn" disabled={loading}>
-                    <span>{loading ? 'Creating Account...' : 'Register Account'}</span>
-                    <ArrowRight size={17} />
+                <div className="auth-buttons">
+                  <button type="submit" className="btn btn-primary" disabled={loading}>
+                    {loading ? 'Submitting…' : 'Register Account'} <ArrowRight size={16} aria-hidden="true" />
                   </button>
-                  <button 
+                  <button
                     type="button"
-                    className="create-account-btn"
+                    className="btn btn-outline"
                     onClick={() => { setIsSignUp(false); setError(''); setSuccessMsg(''); }}
                   >
                     Back to Login
@@ -332,14 +332,12 @@ export default function VendorLogin({ onLogin, initialSignUp = false }) {
             )}
 
             {/* Switch to Customer Login */}
-            <div className="other-portals-section">
-              <span className="or-text">Are you a customer?</span>
-              <div className="portals-dual-links">
-                <Link to="/login" className="portal-pill-link">
-                  <User size={15} />
-                  <span>Switch to Customer Login</span>
-                </Link>
-              </div>
+            <div className="auth-portals">
+              <span className="auth-portals-label">Are you a customer?</span>
+              <Link to="/login" className="auth-portal-link">
+                <User size={15} aria-hidden="true" />
+                <span>Switch to Customer Login</span>
+              </Link>
             </div>
           </div>
         </div>

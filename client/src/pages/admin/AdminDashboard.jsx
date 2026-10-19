@@ -8,7 +8,8 @@ import {
   updateProductStatus, 
   getOrders, 
   updateOrderStatus, 
-  getCustomers 
+  getCustomers,
+  syncFromServer
 } from '../../utils/storage';
 import './AdminDashboard.css';
 
@@ -20,10 +21,17 @@ export default function AdminDashboard({ onLogout }) {
   const [customers, setCustomers] = useState([]);
 
   useEffect(() => {
-    setVendors(getVendors());
-    setProducts(getProducts());
-    setOrders(getOrders());
-    setCustomers(getCustomers());
+    let cancelled = false;
+    const load = async () => {
+      await syncFromServer();
+      if (cancelled) return;
+      setVendors(getVendors());
+      setProducts(getProducts());
+      setOrders(getOrders());
+      setCustomers(getCustomers());
+    };
+    load();
+    return () => { cancelled = true; };
   }, [activeTab]);
 
   const handleStatusUpdate = (id, status) => {

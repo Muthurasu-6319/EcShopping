@@ -1,39 +1,62 @@
-import React from 'react';
-import Hero from '../components/Hero';
-import Categories from '../components/Categories';
-import HowItWorks from '../components/HowItWorks';
-import FeaturedProducts from '../components/FeaturedProducts';
-import MeetSellers from '../components/MeetSellers';
-import WhyChooseUs from '../components/WhyChooseUs';
-import Testimonials from '../components/Testimonials';
-import CTA from '../components/CTA';
+import {
+  Hero,
+  CategoryGrid,
+  CollectionsStrip,
+  ConcernGrid,
+  VideoShop,
+  CategoryRails,
+  MarqueeStrip,
+  ProductRail,
+  OrderingSteps,
+  BenefitsGrid,
+  TestimonialsSection,
+  NewsletterCta
+} from '../components/home/HomeSections';
+import { getProductsByTag, getCollectionProducts } from '../data/catalog';
 
 export default function Home({ onAddToCart }) {
+  const bestsellers = getProductsByTag('bestseller');
+  const newArrivals = getProductsByTag('new');
+  const deals = getCollectionProducts('deals');
+
   return (
     <>
-      {/* 2. Hero Section */}
       <Hero />
-
-      {/* 3. Shop by Category (6 Categories) */}
-      <Categories />
-
-      {/* 4. How It Works (5-Step Customer Flow + Mobile App Frame) */}
-      <HowItWorks />
-
-      {/* 5. Featured Products (Row 1: Handpicked + Row 2: More Fresh Picks) */}
-      <FeaturedProducts onAddToCart={onAddToCart} />
-
-      {/* 6. Meet Our Sellers (4 Verified Local Sellers) */}
-      <MeetSellers />
-
-      {/* 7. Why Choose Us & Vendor Banner */}
-      <WhyChooseUs />
-
-      {/* 8. Testimonials */}
-      <Testimonials />
-
-      {/* 9. Call to Action Banner */}
-      <CTA />
+      <CategoryGrid />
+      <ConcernGrid />
+      <CollectionsStrip />
+      <VideoShop />
+      <ProductRail
+        eyebrow="Bestsellers"
+        title="What customers reorder every week"
+        subtitle="Consistent quality is why these keep coming back."
+        linkTo="/collection/bestsellers"
+        items={bestsellers}
+        onAddToCart={onAddToCart}
+      />
+      <OrderingSteps />
+      <ProductRail
+        eyebrow="New products"
+        title="Fresh listings from our sellers"
+        subtitle="New produce, pantry items and home goods added this month."
+        linkTo="/collection/new-arrivals"
+        items={newArrivals}
+        onAddToCart={onAddToCart}
+      />
+      <CategoryRails onAddToCart={onAddToCart} />
+      <MarqueeStrip />
+      <ProductRail
+        eyebrow="Limited time deals"
+        title="Lower prices on everyday essentials"
+        subtitle="Limited-period pricing across pantry and fresh combos."
+        linkTo="/collection/deals"
+        items={deals}
+        tone="accent"
+        onAddToCart={onAddToCart}
+      />
+      <BenefitsGrid />
+      <TestimonialsSection />
+      <NewsletterCta />
     </>
   );
 }

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Navigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { getCustomerOrders } from '../utils/storage';
-import { User, Package, LogOut, MapPin, Phone, Mail, ShoppingBag } from 'lucide-react';
+import { User, Package, LogOut } from 'lucide-react';
 import './CustomerProfile.css';
 
-export default function CustomerProfile({ loggedInCustomer, onLogout }) {
+export default function CustomerProfile({ loggedInCustomer, onLogout, onOpenLogin }) {
   const [orders, setOrders] = useState([]);
   const [activeTab, setActiveTab] = useState('orders');
 
@@ -15,7 +15,26 @@ export default function CustomerProfile({ loggedInCustomer, onLogout }) {
   }, [loggedInCustomer]);
 
   if (!loggedInCustomer) {
-    return <Navigate to="/" />;
+    return (
+      <div className="customer-profile-page container">
+        <div className="profile-header">
+          <h1>My Account</h1>
+          <p>Sign in to view your orders, saved details and tracking in one place.</p>
+        </div>
+        <div className="no-orders">
+          <User size={48} color="#cbd5e1" />
+          <p>You are not signed in yet.</p>
+          <div style={{ display: 'flex', gap: '10px', marginTop: '15px', flexWrap: 'wrap', justifyContent: 'center' }}>
+            <button type="button" className="btn-place-order" style={{ display: 'inline-block', border: 'none', cursor: 'pointer' }} onClick={() => onOpenLogin?.()}>
+              Sign in
+            </button>
+            <Link to="/shop" style={{ display: 'inline-block', padding: '12px 24px', border: '1px solid #e2e8f0', borderRadius: '6px', textDecoration: 'none', fontWeight: 600, color: '#334155' }}>
+              Continue shopping
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -61,11 +80,16 @@ export default function CustomerProfile({ loggedInCustomer, onLogout }) {
         <div className="profile-content">
           {activeTab === 'orders' && (
             <div className="orders-section">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
                 <h2 style={{ margin: 0 }}>Order History</h2>
-                <Link to="/shop" style={{ color: '#16a34a', textDecoration: 'none', fontWeight: 600, fontSize: '14px' }}>
-                  + Continue Shopping
-                </Link>
+                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                  <Link to="/orders" style={{ color: '#16a34a', textDecoration: 'none', fontWeight: 600, fontSize: '14px' }}>
+                    View all orders
+                  </Link>
+                  <Link to="/shop" style={{ color: '#16a34a', textDecoration: 'none', fontWeight: 600, fontSize: '14px' }}>
+                    + Continue Shopping
+                  </Link>
+                </div>
               </div>
               
               {orders.length === 0 ? (
@@ -82,7 +106,9 @@ export default function CustomerProfile({ loggedInCustomer, onLogout }) {
                     <div className="order-card" key={order.id}>
                       <div className="order-card-header">
                         <div>
-                          <span className="order-id">Order {order.id}</span>
+                          <Link to={`/orders/${order.id}`} className="order-id" style={{ textDecoration: 'none' }}>
+                            Order {order.orderNumber || order.id}
+                          </Link>
                           <span className="order-date">{new Date(order.date).toLocaleDateString()}</span>
                         </div>
                         <span className={`status-badge status-${(order.status || 'processing').toLowerCase()}`}>
@@ -119,7 +145,7 @@ export default function CustomerProfile({ loggedInCustomer, onLogout }) {
                         </span>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                           <span className="total-label">Total Amount:</span>
-                          <span className="total-amount">₹{order.totalAmount.toFixed(2)}</span>
+                          <span className="total-amount">₹{(Number(order.totalAmount ?? order.total) || 0).toFixed(2)}</span>
                         </div>
                       </div>
                     </div>

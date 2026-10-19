@@ -1,343 +1,408 @@
-import React, { useState, useEffect } from 'react';
-import { ChevronRight, Grid, List, LayoutGrid, SlidersHorizontal, Heart, Clock, ChevronDown, Plus, Minus, Eye, Star, ShoppingBag } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { getProducts } from '../utils/storage';
+import { useEffect, useMemo, useState } from 'react';
+import { useParams, useLocation, useSearchParams, Link } from 'react-router-dom';
+import { SlidersHorizontal, X, Search, PackageSearch, LayoutGrid, Rows3 } from 'lucide-react';
+import { getCatalogProducts, categories, getCategory, getCollection } from '../data/catalog';
+import { PageHero } from '../components/ui/PageHeader';
+import ProductCard from '../components/ui/ProductCard';
+import Pagination from '../components/ui/Pagination';
+import { EmptyState, SkeletonGrid } from '../components/ui/States';
 import './Shop.css';
-import '../components/FeaturedProducts.css';
 
-// Mock data for products
-const shopSliderImages = [
-  "https://images.unsplash.com/photo-1542838132-92c53300491e?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80", // Grocery
-  "https://images.unsplash.com/photo-1488459716781-31db52582fe9?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80", // Vegetables
-  "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80"  // Farm
+const PAGE_SIZE = 12;
+
+const SORT_OPTIONS = [
+  { value: 'relevance', label: 'Relevance' },
+  { value: 'price-asc', label: 'Price: low to high' },
+  { value: 'price-desc', label: 'Price: high to low' },
+  { value: 'newest', label: 'Newest first' },
+  { value: 'rating', label: 'Customer rating' },
+  { value: 'bestselling', label: 'Best selling' }
 ];
 
-const mockProducts = [
-  {
-    id: 1,
-    title: "Pure Coconut Oil - Ramesh Farms",
-    price: 150,
-    image: "https://images.unsplash.com/photo-1611077543781-a96c138b1d98?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=60",
-    soldBy: "RAMESH FARMS",
-    badge: "Popular",
-    rating: 4.8,
-    reviews: 120,
-    variants: ["1 Litre", "500 ml"]
-  },
-  {
-    id: 2,
-    title: "Natural Turmeric powder",
-    price: 45,
-    image: "https://images.unsplash.com/photo-1615485925600-97237c4fc1ec?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=60",
-    soldBy: "Shop up",
-    badge: "Natural",
-    rating: 4.9,
-    reviews: 84,
-    variants: ["1 kg", "250 gm", "500 gm"]
-  },
-  {
-    id: 3,
-    title: "Palm jaggery powder",
-    price: 120,
-    image: "https://images.unsplash.com/photo-1613589921763-7140e6c5bbbd?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=60",
-    soldBy: "RAMESH FARMS",
-    badge: "Fresh",
-    rating: 4.7,
-    reviews: 56,
-    variants: ["1 kg", "500 gm"]
-  },
-  {
-    id: 4,
-    title: "Sheep (Live)",
-    price: 8000,
-    image: "https://images.unsplash.com/photo-1484557985045-edf25e08da73?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=60",
-    soldBy: "Agri Farm",
-    badge: null,
-    rating: 4.5,
-    reviews: 12,
-    variants: []
-  },
-  {
-    id: 5,
-    title: "Fresh Organic Tomatoes",
-    price: 40,
-    image: "https://images.unsplash.com/photo-1592924357228-91a4daadcfea?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=60",
-    soldBy: "Green Valley",
-    badge: "New",
-    rating: 4.9,
-    reviews: 230,
-    variants: ["1 kg", "2 kg"]
-  },
-  {
-    id: 6,
-    title: "Country Chicken - Nattu Kozhi",
-    price: 450,
-    image: "https://images.unsplash.com/photo-1548365328-8c6db3220e4c?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=60",
-    soldBy: "Poultry Hub",
-    badge: "Popular",
-    rating: 4.6,
-    reviews: 95,
-    variants: ["1 kg", "Live"]
-  }
+const PRICE_BANDS = [
+  { label: 'Under ₹100', min: 0, max: 100 },
+  { label: '₹100 – ₹500', min: 100, max: 500 },
+  { label: '₹500 – ₹1,000', min: 500, max: 1000 },
+  { label: 'Above ₹1,000', min: 1000, max: null }
 ];
 
 export default function Shop({ onAddToCart }) {
-  const [viewMode, setViewMode] = useState('grid');
-  const [currentSlide, setCurrentSlide] = useState(0);
-  const [hoveredProduct, setHoveredProduct] = useState(null);
-  const [selectedVariants, setSelectedVariants] = useState({});
-  const [quantities, setQuantities] = useState({});
-  const [products, setProducts] = useState(mockProducts);
+  const { slug } = useParams();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [dense, setDense] = useState(false);
 
-  const handleVariantSelect = (productId, variant) => {
-    setSelectedVariants(prev => ({ ...prev, [productId]: variant }));
-  };
+  const mode = location.pathname.startsWith('/category')
+    ? 'category'
+    : location.pathname.startsWith('/collection')
+      ? 'collection'
+      : 'all';
 
-  const handleQuantityChange = (productId, delta) => {
-    setQuantities(prev => {
-      const current = prev[productId] || 1;
-      const next = current + delta;
-      if (next < 1) return prev;
-      return { ...prev, [productId]: next };
-    });
-  };
+  const search = searchParams.get('search') || '';
+  const sort = searchParams.get('sort') || 'relevance';
+  const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
+  const activeCategories = searchParams.getAll('category');
+  const bandIndex = searchParams.get('band') ? Number(searchParams.get('band')) : null;
+  const minRating = Number(searchParams.get('rating') || 0);
+  const inStockOnly = searchParams.get('inStock') === '1';
+  const seller = searchParams.get('seller') || '';
 
-  const handleAddToCartWithVariant = (product) => {
-    const qty = quantities[product.id] || 1;
-    const variant = selectedVariants[product.id] || (product.variants && product.variants[0]);
-    
-    onAddToCart(product, qty, variant); 
-  };
+  const activeCategory = mode === 'category' ? getCategory(slug) : null;
+  const activeCollection = mode === 'collection' ? getCollection(slug) : null;
 
+  /* Short simulated fetch so loading states are real UI, not decoration. */
   useEffect(() => {
-    // Load approved products from storage and combine with mock products
-    const vendorProducts = getProducts().filter(p => p.status === 'approved');
-    const combinedProducts = [
-      ...mockProducts,
-      ...vendorProducts.map(vp => ({
-        id: vp.id,
-        title: vp.title,
-        price: Number(vp.price),
-        image: vp.image,
-        soldBy: vp.vendorName,
-        badge: "New",
-        rating: 5.0, // Default rating for new products
-        reviews: 0,
-        variants: [] // Defaults
-      }))
-    ];
-    setProducts(combinedProducts);
+    setLoading(true);
+    const t = setTimeout(() => setLoading(false), 260);
+    return () => clearTimeout(t);
+  }, [location.pathname, searchParams.toString()]);
 
-    const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % shopSliderImages.length);
-    }, 4000);
-    return () => clearInterval(timer);
-  }, []);
-  
+  const setParams = (patch) => {
+    const next = new URLSearchParams(searchParams);
+    Object.entries(patch).forEach(([key, value]) => {
+      if (Array.isArray(value)) {
+        next.delete(key);
+        value.forEach((v) => next.append(key, v));
+      } else if (value === '' || value === null || value === undefined || value === false) {
+        next.delete(key);
+      } else {
+        next.set(key, String(value));
+      }
+    });
+    if (!('page' in patch)) next.delete('page');
+    setSearchParams(next, { replace: false });
+  };
+
+  const clearFilters = () => {
+    const next = new URLSearchParams();
+    if (search) next.set('search', search);
+    setSearchParams(next);
+  };
+
+  const allProducts = useMemo(() => getCatalogProducts(), []);
+  const sellers = useMemo(
+    () => Array.from(new Set(allProducts.map((p) => p.seller).filter(Boolean))).sort(),
+    [allProducts]
+  );
+
+  const results = useMemo(() => {
+    let list = [...allProducts];
+
+    if (mode === 'category' && activeCategory) list = list.filter((p) => p.category === activeCategory.slug);
+    if (mode === 'collection' && activeCollection) {
+      const order = activeCollection.productIds;
+      list = order.map((id) => list.find((p) => String(p.id) === String(id))).filter(Boolean);
+    }
+    if (mode === 'all' && activeCategories.length) {
+      list = list.filter((p) => activeCategories.includes(p.category));
+    }
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter((p) => `${p.title} ${p.seller || ''} ${p.category || ''}`.toLowerCase().includes(q));
+    }
+    if (bandIndex != null && PRICE_BANDS[bandIndex]) {
+      const { min, max } = PRICE_BANDS[bandIndex];
+      list = list.filter((p) => p.price >= min && (max == null || p.price <= max));
+    }
+    if (minRating > 0) list = list.filter((p) => (p.rating || 0) >= minRating);
+    if (inStockOnly) list = list.filter((p) => p.inStock !== false);
+    if (seller) list = list.filter((p) => p.seller === seller);
+
+    switch (sort) {
+      case 'price-asc':
+        list.sort((a, b) => a.price - b.price);
+        break;
+      case 'price-desc':
+        list.sort((a, b) => b.price - a.price);
+        break;
+      case 'newest':
+        list.sort((a, b) => new Date(b.addedAt || 0) - new Date(a.addedAt || 0));
+        break;
+      case 'rating':
+        list.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+        break;
+      case 'bestselling':
+        list.sort((a, b) => (b.sales || 0) - (a.sales || 0));
+        break;
+      default:
+        break;
+    }
+
+    return list;
+  }, [allProducts, mode, activeCategory, activeCollection, activeCategories, search, bandIndex, minRating, inStockOnly, seller, sort]);
+
+  const totalPages = Math.max(1, Math.ceil(results.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageItems = results.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  const activeFilterCount =
+    activeCategories.length +
+    (bandIndex != null ? 1 : 0) +
+    (minRating > 0 ? 1 : 0) +
+    (inStockOnly ? 1 : 0) +
+    (seller ? 1 : 0);
+
+  const title =
+    mode === 'category' && activeCategory
+      ? activeCategory.title
+      : mode === 'collection' && activeCollection
+        ? activeCollection.title
+        : search
+          ? `Results for “${search}”`
+          : 'All products';
+
+  const subtitle =
+    mode === 'category' && activeCategory
+      ? activeCategory.blurb
+      : mode === 'collection' && activeCollection
+        ? activeCollection.subtitle
+        : 'Browse everything listed by our verified sellers.';
+
+  const crumbs = [{ label: 'Shop', to: '/shop' }];
+  if (mode === 'category') crumbs.push({ label: activeCategory ? activeCategory.title : slug, to: `/category/${slug}` });
+  if (mode === 'collection') crumbs.push({ label: activeCollection ? activeCollection.title : slug, to: `/collection/${slug}` });
+  if (search) crumbs.push({ label: `Search: ${search}` });
+
+  const unknownSlug = (mode === 'category' && !activeCategory) || (mode === 'collection' && !activeCollection);
+
   return (
-    <div className="shop-page">
-      {/* Shop Hero Slider */}
-      <div className="shop-hero-slider">
-        {shopSliderImages.map((img, index) => (
-          <div 
-            key={index} 
-            className={`slider-slide ${index === currentSlide ? 'active' : ''}`}
-            style={{ backgroundImage: `url(${img})` }}
-          />
-        ))}
-        <div className="slider-overlay">
-          <h2>Fresh Groceries & Farm Products</h2>
-          <p>Direct from local farmers to your doorstep</p>
-        </div>
-        <div className="slider-dots">
-          {shopSliderImages.map((_, index) => (
-            <button 
-              key={index} 
-              aria-label={`Go to slide ${index + 1}`}
-              className={`dot ${index === currentSlide ? 'active' : ''}`}
-              onClick={() => setCurrentSlide(index)}
-            />
-          ))}
-        </div>
-      </div>
+    <>
+      <PageHero title={title} subtitle={subtitle} crumbs={crumbs} />
 
-      {/* Breadcrumb Area */}
-      <div className="shop-breadcrumb-area">
-        <div className="container">
-          <div className="breadcrumb-inner">
-            <button className="browse-categories-btn">
-              <List size={20} />
-              BROWSE CATEGORIES
+      <div className="container shop-layout">
+        {/* ---------- Filters (desktop sidebar / mobile drawer) ---------- */}
+        <aside className={`shop-sidebar ${filtersOpen ? 'open' : ''}`} aria-label="Product filters">
+          <div className="sidebar-head">
+            <h2>Filters</h2>
+            <button type="button" className="sidebar-close" onClick={() => setFiltersOpen(false)} aria-label="Close filters">
+              <X size={19} />
             </button>
-            <div className="breadcrumb-nav">
-              <a href="/">Home</a>
-              <ChevronRight size={16} />
-              <span>Shop</span>
-            </div>
           </div>
-        </div>
-      </div>
 
-      <div className="container shop-container">
-        {/* Sidebar */}
-        <aside className="shop-sidebar">
-          <div className="widget filter-widget">
-            <h3 className="widget-title">Product Categories</h3>
-            <ul className="category-list">
-              <li><label><input type="checkbox" /> Groceries (15)</label></li>
-              <li><label><input type="checkbox" /> Fresh Vegetables (23)</label></li>
-              <li><label><input type="checkbox" /> Live Stock (5)</label></li>
-              <li><label><input type="checkbox" /> Spices (12)</label></li>
-              <li><label><input type="checkbox" /> Oils (8)</label></li>
+          <div className="filter-group">
+            <h3>Category</h3>
+            <ul className="filter-list">
+              {categories.map((cat) => {
+                const checked = activeCategories.includes(cat.slug);
+                return (
+                  <li key={cat.slug}>
+                    <label className="check">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() =>
+                          setParams({
+                            category: checked
+                              ? activeCategories.filter((c) => c !== cat.slug)
+                              : [...activeCategories, cat.slug]
+                          })
+                        }
+                      />
+                      <span>{cat.title}</span>
+                    </label>
+                  </li>
+                );
+              })}
             </ul>
           </div>
-          <div className="widget filter-widget">
-            <h3 className="widget-title">Price Range</h3>
-            <input type="range" min="0" max="10000" className="price-slider" />
-            <div className="price-labels">
-              <span>₹0</span>
-              <span>₹10,000+</span>
+
+          <div className="filter-group">
+            <h3>Price</h3>
+            <div className="filter-chips">
+              {PRICE_BANDS.map((band, index) => (
+                <button
+                  key={band.label}
+                  type="button"
+                  className={`chip ${bandIndex === index ? 'active' : ''}`}
+                  onClick={() => setParams({ band: bandIndex === index ? '' : index })}
+                >
+                  {band.label}
+                </button>
+              ))}
             </div>
           </div>
+
+          <div className="filter-group">
+            <h3>Customer rating</h3>
+            <div className="filter-chips">
+              {[4.5, 4, 3.5].map((rating) => (
+                <button
+                  key={rating}
+                  type="button"
+                  className={`chip ${minRating === rating ? 'active' : ''}`}
+                  onClick={() => setParams({ rating: minRating === rating ? '' : rating })}
+                >
+                  {rating}★ &amp; up
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="filter-group">
+            <h3>Seller</h3>
+            <label className="sr-only" htmlFor="seller-select">Filter by seller</label>
+            <select
+              id="seller-select"
+              className="select"
+              value={seller}
+              onChange={(e) => setParams({ seller: e.target.value })}
+            >
+              <option value="">All sellers</option>
+              {sellers.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="filter-group">
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={inStockOnly}
+                onChange={() => setParams({ inStock: inStockOnly ? '' : '1' })}
+              />
+              <span>In stock only</span>
+            </label>
+          </div>
+
+          <button type="button" className="btn btn-ghost btn-block" onClick={clearFilters} disabled={activeFilterCount === 0}>
+            Clear all filters
+          </button>
+
+          <button type="button" className="btn btn-primary btn-block sidebar-apply" onClick={() => setFiltersOpen(false)}>
+            Show {results.length} result{results.length === 1 ? '' : 's'}
+          </button>
         </aside>
 
-        {/* Main Content */}
-        <div className="shop-main">
-          {/* Shop Header / Filters */}
-          <div className="shop-header">
-            <div className="filter-toggle-mobile">
-              <button><SlidersHorizontal size={18} /> Filters</button>
-            </div>
-            
-            <div className="view-modes">
-              <button className={`view-btn ${viewMode === 'grid' ? 'active' : ''}`} onClick={() => setViewMode('grid')}>
-                <Grid size={18} />
-              </button>
-              <button className={`view-btn ${viewMode === 'list' ? 'active' : ''}`} onClick={() => setViewMode('list')}>
-                <LayoutGrid size={18} />
-              </button>
-            </div>
+        {filtersOpen && (
+          <button type="button" className="sidebar-backdrop" onClick={() => setFiltersOpen(false)} aria-label="Close filters" />
+        )}
 
-            <div className="sort-by">
-              <span>Sort by:</span>
-              <select defaultValue="default">
-                <option value="default">Default sorting</option>
-                <option value="popularity">Sort by popularity</option>
-                <option value="rating">Sort by average rating</option>
-                <option value="newest">Sort by latest</option>
-                <option value="price-low">Sort by price: low to high</option>
-                <option value="price-high">Sort by price: high to low</option>
+        {/* ---------- Results ---------- */}
+        <section className="shop-results" aria-live="polite">
+          <div className="shop-toolbar">
+            <button type="button" className="filter-toggle" onClick={() => setFiltersOpen(true)}>
+              <SlidersHorizontal size={16} />
+              Filters {activeFilterCount > 0 && <span className="filter-count">{activeFilterCount}</span>}
+            </button>
+
+            <p className="shop-count">
+              {loading ? 'Loading products…' : `${results.length} product${results.length === 1 ? '' : 's'}`}
+            </p>
+
+            <div className="shop-toolbar-right">
+              <div className="view-toggle" role="group" aria-label="Layout density">
+                <button type="button" className={!dense ? 'active' : ''} onClick={() => setDense(false)} aria-label="Comfortable grid" aria-pressed={!dense}>
+                  <LayoutGrid size={16} />
+                </button>
+                <button type="button" className={dense ? 'active' : ''} onClick={() => setDense(true)} aria-label="Compact grid" aria-pressed={dense}>
+                  <Rows3 size={16} />
+                </button>
+              </div>
+
+              <label className="sr-only" htmlFor="sort-select">Sort products</label>
+              <select
+                id="sort-select"
+                className="select sort-select"
+                value={sort}
+                onChange={(e) => setParams({ sort: e.target.value })}
+              >
+                {SORT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
               </select>
             </div>
           </div>
 
-          {/* Product Grid */}
-          <div className="competitor-product-grid">
-            {products.map((product) => {
-              const qty = quantities[product.id] || 1;
-              const originalPrice = product.originalPrice || (product.price ? Math.round(product.price * 1.25) : null);
+          {activeFilterCount > 0 && (
+            <div className="active-filters">
+              {activeCategories.map((catSlug) => (
+                <button
+                  key={catSlug}
+                  type="button"
+                  className="active-chip"
+                  onClick={() => setParams({ category: activeCategories.filter((c) => c !== catSlug) })}
+                >
+                  {getCategory(catSlug)?.title || catSlug} <X size={13} />
+                </button>
+              ))}
+              {bandIndex != null && PRICE_BANDS[bandIndex] && (
+                <button type="button" className="active-chip" onClick={() => setParams({ band: '' })}>
+                  {PRICE_BANDS[bandIndex].label} <X size={13} />
+                </button>
+              )}
+              {minRating > 0 && (
+                <button type="button" className="active-chip" onClick={() => setParams({ rating: '' })}>
+                  {minRating}★ &amp; up <X size={13} />
+                </button>
+              )}
+              {seller && (
+                <button type="button" className="active-chip" onClick={() => setParams({ seller: '' })}>
+                  {seller} <X size={13} />
+                </button>
+              )}
+              {inStockOnly && (
+                <button type="button" className="active-chip" onClick={() => setParams({ inStock: '' })}>
+                  In stock <X size={13} />
+                </button>
+              )}
+            </div>
+          )}
 
-              return (
-                <div key={product.id} className="competitor-product-card">
-                  {/* Square Image Box with Bottom Action Bar */}
-                  <div className="card-image-wrapper">
-                    <Link to={`/product/${product.id}`} className="card-image-link">
-                      <img 
-                        src={product.image} 
-                        alt={product.title} 
-                        className="card-main-image"
-                        loading="lazy" 
-                      />
-                    </Link>
-                    
-                    {/* Badge */}
-                    {product.badge && (
-                      <span className="card-bestseller-badge">
-                        {product.badge}
-                      </span>
-                    )}
+          {unknownSlug ? (
+            <EmptyState
+              icon={<Search size={28} />}
+              title="That page does not exist"
+              text={`We could not find “${slug}”. It may have been renamed or removed.`}
+              actions={
+                <>
+                  <Link to="/shop" className="btn btn-primary">Browse all products</Link>
+                  <Link to="/" className="btn btn-ghost">Back to home</Link>
+                </>
+              }
+            />
+          ) : loading ? (
+            <SkeletonGrid count={8} className={dense ? 'compact' : ''} />
+          ) : results.length === 0 ? (
+            <EmptyState
+              icon={<PackageSearch size={28} />}
+              title="No products match these filters"
+              text="Try removing a filter, widening the price range, or search for something else."
+              actions={
+                <>
+                  <button type="button" className="btn btn-primary" onClick={clearFilters}>Clear filters</button>
+                  <Link to="/shop" className="btn btn-ghost">View all products</Link>
+                </>
+              }
+            />
+          ) : (
+            <>
+              <div className={`product-grid shop-grid ${dense ? 'compact' : ''}`}>
+                {pageItems.map((product) => (
+                  <ProductCard key={product.id} product={product} onAddToCart={onAddToCart} />
+                ))}
+              </div>
 
-                    {/* Wishlist Button */}
-                    <button 
-                      type="button" 
-                      className="card-wishlist-toggle"
-                      aria-label="Wishlist"
-                    >
-                      <Heart size={16} color="#475569" />
-                    </button>
+              <Pagination
+                page={safePage}
+                totalPages={totalPages}
+                totalItems={results.length}
+                pageSize={PAGE_SIZE}
+                onChange={(next) => {
+                  setParams({ page: next });
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+              />
 
-                    {/* Bottom Action Bar: Quantity Controls + ADD TO CART */}
-                    <div className="card-bottom-action-bar">
-                      <div className="card-qty-control">
-                        <button 
-                          type="button" 
-                          onClick={() => handleQuantityChange(product.id, -1)}
-                          aria-label="Decrease quantity"
-                        >
-                          <Minus size={14} />
-                        </button>
-                        <span className="card-qty-num">{qty}</span>
-                        <button 
-                          type="button" 
-                          onClick={() => handleQuantityChange(product.id, 1)}
-                          aria-label="Increase quantity"
-                        >
-                          <Plus size={14} />
-                        </button>
-                      </div>
-
-                      <button 
-                        type="button" 
-                        className="card-add-cart-btn" 
-                        onClick={() => handleAddToCartWithVariant(product)}
-                      >
-                        ADD TO CART
-                      </button>
-                    </div>
-                  </div>
-                  
-                  {/* Details Below Image */}
-                  <div className="card-details-box">
-                    <Link to={`/product/${product.id}`} className="card-title-link">
-                      <h3 className="card-product-title">{product.title}</h3>
-                    </Link>
-
-                    <div className="card-price-row">
-                      {originalPrice && (
-                        <span className="card-original-price">
-                          Rs. {originalPrice.toFixed(2)}
-                        </span>
-                      )}
-                      <span className="card-current-price">
-                        Rs. {Number(product.price).toFixed(2)}
-                      </span>
-                    </div>
-
-                    <div className="card-rating-row">
-                      <div className="card-stars">
-                        {[...Array(5)].map((_, i) => (
-                          <Star key={i} size={14} fill="#f59e0b" color="#f59e0b" />
-                        ))}
-                      </div>
-                      <span className="card-reviews-text">
-                        {product.reviews || 0} reviews
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          
-          {/* Pagination */}
-          <div className="pagination">
-            <button className="page-btn active">1</button>
-            <button className="page-btn">2</button>
-            <button className="page-btn">3</button>
-            <button className="page-btn next">Next</button>
-          </div>
-        </div>
+              <p className="shop-footnote">
+                All prices are in Indian Rupees (₹) and include applicable taxes where noted by the seller.
+              </p>
+            </>
+          )}
+        </section>
       </div>
-    </div>
+    </>
   );
 }
