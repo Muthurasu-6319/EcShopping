@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useLocation, useSearchParams, Link } from 'react-router-dom';
 import { SlidersHorizontal, X, Search, PackageSearch, LayoutGrid, Rows3 } from 'lucide-react';
 import { getCatalogProducts, categories, getCategory, getCollection } from '../data/catalog';
-import { PageHero } from '../components/ui/PageHeader';
+import { Breadcrumbs } from '../components/ui/PageHeader';
 import ProductCard from '../components/ui/ProductCard';
 import Pagination from '../components/ui/Pagination';
 import { EmptyState, SkeletonGrid } from '../components/ui/States';
@@ -151,7 +151,7 @@ export default function Shop({ onAddToCart }) {
         ? activeCollection.title
         : search
           ? `Results for “${search}”`
-          : 'All products';
+          : 'All Products';
 
   const subtitle =
     mode === 'category' && activeCategory
@@ -169,7 +169,28 @@ export default function Shop({ onAddToCart }) {
 
   return (
     <>
-      <PageHero title={title} subtitle={subtitle} crumbs={crumbs} />
+      <section className="shop-head">
+        <div className="container">
+          <Breadcrumbs items={crumbs} />
+          <h1>{title}</h1>
+          <p className="shop-head-sub">{subtitle}</p>
+
+          <nav className="shop-cat-strip" aria-label="Shop categories">
+            <Link to="/shop" className={mode === 'all' && !search ? 'active' : ''}>
+              All Products
+            </Link>
+            {categories.map((cat) => (
+              <Link
+                key={cat.slug}
+                to={`/category/${cat.slug}`}
+                className={mode === 'category' && activeCategory?.slug === cat.slug ? 'active' : ''}
+              >
+                {cat.title}
+              </Link>
+            ))}
+          </nav>
+        </div>
+      </section>
 
       <div className="container shop-layout">
         {/* ---------- Filters (desktop sidebar / mobile drawer) ---------- */}

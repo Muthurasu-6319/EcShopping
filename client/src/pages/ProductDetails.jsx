@@ -201,6 +201,10 @@ export default function ProductDetails({ onAddToCart }) {
                 alt={`${product.title} — image ${activeImage + 1}`}
                 width="720"
                 height="720"
+                onError={(e) => {
+                  const fallback = category?.image || categories[0]?.image;
+                  if (fallback && e.currentTarget.src !== fallback) e.currentTarget.src = fallback;
+                }}
               />
             </div>
 
@@ -215,7 +219,17 @@ export default function ProductDetails({ onAddToCart }) {
                     className={`pdp-thumb ${index === activeImage ? 'active' : ''}`}
                     onClick={() => setActiveImage(index)}
                   >
-                    <img src={src} alt={`View ${index + 1}`} width="80" height="80" loading="lazy" />
+                    <img
+                      src={src}
+                      alt={`View ${index + 1}`}
+                      width="80"
+                      height="80"
+                      loading="lazy"
+                      onError={(e) => {
+                        const fallback = category?.image || categories[0]?.image;
+                        if (fallback && e.currentTarget.src !== fallback) e.currentTarget.src = fallback;
+                      }}
+                    />
                   </button>
                 ))}
               </div>
@@ -254,7 +268,10 @@ export default function ProductDetails({ onAddToCart }) {
                 ))}
               </span>
               <strong>{Number(product.rating || 0).toFixed(1)}</strong>
-                <span>{reviews.length} {reviews.length === 1 ? 'rating' : 'ratings'}</span>
+                <span>
+                  {reviews.length || product.reviews || 0}{' '}
+                  {(reviews.length || product.reviews || 0) === 1 ? 'rating' : 'ratings'}
+                </span>
             </a>
 
             <div className="pdp-price-block">
@@ -297,7 +314,7 @@ export default function ProductDetails({ onAddToCart }) {
               <QuantityStepper value={quantity} onChange={setQuantity} label="quantity" max={10} />
               <button
                 type="button"
-                className="btn btn-outline btn-lg pdp-add-btn"
+                className="btn btn-primary btn-lg pdp-add-btn"
                 onClick={handleAdd}
                 disabled={product.inStock === false}
               >
@@ -305,7 +322,7 @@ export default function ProductDetails({ onAddToCart }) {
               </button>
               <button
                 type="button"
-                className="btn btn-accent btn-lg pdp-buy-btn"
+                className="btn btn-dark btn-lg pdp-buy-btn"
                 onClick={handleBuyNow}
                 disabled={product.inStock === false}
               >

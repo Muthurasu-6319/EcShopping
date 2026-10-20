@@ -1,6 +1,7 @@
 import {
   Hero,
   CategoryGrid,
+  PromoBanners,
   CollectionsStrip,
   ConcernGrid,
   VideoShop,
@@ -23,6 +24,7 @@ export default function Home({ onAddToCart }) {
     <>
       <Hero />
       <CategoryGrid />
+      <PromoBanners />
       <ConcernGrid />
       <CollectionsStrip />
       <VideoShop />

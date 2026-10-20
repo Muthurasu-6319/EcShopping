@@ -1,5 +1,58 @@
 /* Catalogue / shop page */
 
+.shop-head {
+  padding-block: clamp(20px, 3vw, 30px) clamp(16px, 2vw, 22px);
+  background: linear-gradient(180deg, var(--brand-50) 0%, var(--paper) 100%);
+  border-bottom: 1px solid var(--line);
+}
+
+.shop-head h1 {
+  margin: clamp(12px, 2vw, 18px) 0 6px;
+  text-align: center;
+  color: var(--brand-800);
+  font-size: clamp(1.8rem, 1.3rem + 2vw, 2.7rem);
+}
+
+.shop-head-sub {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.93rem;
+  max-width: 62ch;
+  margin-inline: auto;
+}
+
+.shop-cat-strip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-top: clamp(14px, 2vw, 20px);
+  padding-top: clamp(12px, 2vw, 16px);
+  border-top: 1px solid var(--line);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.shop-cat-strip::-webkit-scrollbar { display: none; }
+
+.shop-cat-strip a {
+  flex-shrink: 0;
+  padding: 7px 14px;
+  border-radius: var(--r-pill);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink-2);
+  white-space: nowrap;
+  transition: background 0.18s var(--ease), color 0.18s var(--ease);
+}
+
+.shop-cat-strip a:hover { background: var(--surface); color: var(--brand); }
+
+.shop-cat-strip a.active {
+  background: var(--brand);
+  color: #fff;
+}
+
 .shop-layout {
   display: grid;
   grid-template-columns: 264px minmax(0, 1fr);
@@ -156,6 +209,10 @@
 }
 
 .active-chip:hover { background: var(--brand-100); }
+
+.shop-grid {
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
 
 /* Dense grid variants */
 

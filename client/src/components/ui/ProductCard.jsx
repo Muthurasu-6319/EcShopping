@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { Heart, ShoppingBag, Check, Star } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useCart } from '../../context/CartContext';
+import { categories } from '../../data/catalog';
 import { formatINR, discountPercent, parsePrice } from '../../utils/pricing';
 import './ui.css';
 
@@ -70,7 +71,8 @@ export default function ProductCard({ product, onAddToCart, showVariants = true,
             width="440"
             height="440"
             onError={(e) => {
-              e.currentTarget.style.visibility = 'hidden';
+              const fallback = categories.find((c) => c.slug === product.category)?.image || categories[0]?.image;
+              if (fallback && e.currentTarget.src !== fallback) e.currentTarget.src = fallback;
             }}
           />
         </Link>

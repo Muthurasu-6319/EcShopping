@@ -24,10 +24,19 @@ import './home.css';
    --------------------------------------------------------------- */
 
 export function Hero() {
+  const featured = [
+    { id: 'hero-fresh', image: categories[0]?.image, badge: 'Farm fresh' },
+    { id: 'hero-pantry', image: categories[1]?.image, badge: '' },
+    { id: 'hero-dairy', image: categories[2]?.image, badge: '' }
+  ];
+  const [lead, ...side] = featured;
+
   return (
     <section className="hero">
       <div className="hero-deco" aria-hidden="true">
         <img src={leafTopRight} alt="" className="hero-deco-leaf leaf-tr" />
+        <span className="hero-blob hero-blob-1" />
+        <span className="hero-blob hero-blob-2" />
       </div>
 
       <div className="container hero-inner">
@@ -51,21 +60,31 @@ export function Hero() {
           </div>
 
           <ul className="hero-trust">
-            <li><Truck size={16} /> Free delivery over ₹499</li>
-            <li><ShieldCheck size={16} /> Verified sellers only</li>
+            <li><ShieldCheck size={16} /> Verified sellers</li>
+            <li><Truck size={16} /> Free delivery over ₹1,499</li>
             <li><RotateCcw size={16} /> 48-hour replacements</li>
           </ul>
         </div>
 
-        <div className="hero-media">
-          <div className="hero-frame">
+        <div className="hero-collage" aria-hidden="true">
+          <div className="hero-collage-main">
             <img
-              src={heroImg}
-              alt="Fresh farm produce packed for delivery"
-              width="720"
-              height="560"
+              src={lead?.image || heroImg}
+              alt=""
+              width="520"
+              height="650"
             />
+            <span className="hero-collage-tag">{lead?.badge || 'Fresh pick'}</span>
           </div>
+
+          <div className="hero-collage-side">
+            {side.map((product) => (
+              <div className="hero-collage-tile" key={product.id}>
+                <img src={product.image} alt="" width="300" height="300" loading="lazy" />
+              </div>
+            ))}
+          </div>
+
           <div className="hero-float hero-float-1">
             <span className="hero-float-icon"><CalendarClock size={17} /></span>
             <span><strong>Same-day dispatch</strong><small>Orders before 4 PM</small></span>
@@ -86,30 +105,67 @@ export function Hero() {
 
 export function CategoryGrid() {
   return (
-    <section className="section">
+    <section className="section category-section">
       <div className="container">
         <SectionHead
-          eyebrow="Shop by category"
-          title="Find what you need, aisle by aisle"
+          center
+          eyebrow="Taste the difference"
+          title="Shop by category"
           subtitle="Six everyday categories, filled by sellers who source and produce locally."
-          linkTo="/shop"
-          linkLabel="All products"
         />
 
-        <div className="cat-grid">
+        <div className="cat-circle-grid">
           {categories.map((cat) => (
-            <Link key={cat.slug} to={`/category/${cat.slug}`} className="cat-card">
-              <div className="cat-media">
-                <img src={cat.image} alt="" width="420" height="300" loading="lazy" />
-              </div>
-              <div className="cat-body">
-                <h3>{cat.title}</h3>
-                <p>{cat.tagline}</p>
-                <span className="cat-link">Browse <ArrowRight size={14} /></span>
-              </div>
+            <Link key={cat.slug} to={`/category/${cat.slug}`} className="cat-circle">
+              <span className="cat-circle-media">
+                <img src={cat.image} alt="" width="240" height="240" loading="lazy" />
+              </span>
+              <span className="cat-circle-title">{cat.title}</span>
+              <span className="cat-circle-sub">{cat.tagline}</span>
             </Link>
           ))}
         </div>
+
+        <div className="cat-all-row">
+          <Link to="/shop" className="link-more">View all products <ArrowRight size={15} /></Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ---------------------------------------------------------------
+   Promotional banners
+   --------------------------------------------------------------- */
+
+export function PromoBanners() {
+  const farmFresh = getCollection('farm-fresh');
+  const deals = getCollection('deals');
+  const banners = [
+    { collection: farmFresh, eyebrow: 'Fresh this week', tone: 'green' },
+    { collection: deals, eyebrow: 'Limited time', tone: 'amber' }
+  ].filter((banner) => banner.collection);
+
+  if (!banners.length) return null;
+
+  return (
+    <section className="section-tight">
+      <div className="container promo-grid">
+        {banners.map(({ collection, eyebrow, tone }) => (
+          <Link
+            key={collection.slug}
+            to={`/collection/${collection.slug}`}
+            className={`promo-banner promo-${tone}`}
+          >
+            <div className="promo-copy">
+              <span className="promo-eyebrow">{eyebrow}</span>
+              <h3>{collection.title}</h3>
+              <p>{collection.subtitle}</p>
+              <span className="promo-link">Shop now <ArrowRight size={15} /></span>
+            </div>
+            <img src={collection.image} alt="" width="640" height="420" loading="lazy" />
+          </Link>
+        ))}
       </div>
     </section>
   );
