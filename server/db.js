@@ -3,13 +3,32 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+// Credentials come exclusively from the environment (server/.env). The server
+// refuses to start when any required value is missing instead of silently
+// falling back to credentials kept in source control.
+const REQUIRED_DB_ENV = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'];
+
+export const validateDbConfig = (env = process.env) => {
+  const missing = REQUIRED_DB_ENV.filter((key) => !String(env[key] || '').trim());
+  return { ok: missing.length === 0, missing };
+};
+
+const dbCheck = validateDbConfig();
+if (!dbCheck.ok) {
+  console.error(
+    `❌ Missing required database configuration: ${dbCheck.missing.join(', ')}.\n` +
+    '   Set them in server/.env (see server/.env.example) and restart the server.'
+  );
+  process.exit(1);
+}
+
 // Create TiDB Cloud MySQL Connection Pool
 export const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'gateway01.ap-southeast-1.prod.aws.tidbcloud.com',
+  host: process.env.DB_HOST,
   port: Number(process.env.DB_PORT) || 4000,
-  user: process.env.DB_USER || '2jfg5VSYFYcSWGr.root',
-  password: process.env.DB_PASSWORD || 'fbKhrByYkqOlhF6S',
-  database: process.env.DB_NAME || 'ecshopping',
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
@@ -53,6 +72,15 @@ const rawGetConnection = pool.getConnection.bind(pool);
 
 pool.query = (...args) => retryOnce(() => rawQuery(...args));
 pool.execute = (...args) => retryOnce(() => rawExecute(...args));
+
+const columnExists = async (connection, table, column) => {
+  const [rows] = await connection.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+    [table, column]
+  );
+  return rows.length > 0;
+};
 
 // Initialize database schema (clean without any dummy data)
 export const initDatabase = async () => {
@@ -179,8 +207,55 @@ export const initDatabase = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
+    // Admin credentials for the admin dashboard (bcrypt hashes only)
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS admins (
+        id VARCHAR(64) PRIMARY KEY,
+        email VARCHAR(255) NOT NULL UNIQUE,
+        password_hash VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    // Create Customer Addresses table
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS customer_addresses (
+        id VARCHAR(64) PRIMARY KEY,
+        user_id VARCHAR(64) NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        phone VARCHAR(50) DEFAULT '',
+        street VARCHAR(255) NOT NULL,
+        city VARCHAR(100) NOT NULL,
+        state VARCHAR(100) NOT NULL,
+        postcode VARCHAR(20) NOT NULL,
+        country VARCHAR(100) DEFAULT 'India',
+        is_default BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_addresses_user (user_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    // Additive migration: hashed password columns for existing users/vendors.
+    // The legacy `password` columns are kept until a separate cleanup is
+    // approved so this upgrade can never destroy existing data.
+    if (!(await columnExists(connection, 'users', 'password_hash'))) {
+      await connection.query('ALTER TABLE users ADD COLUMN password_hash VARCHAR(255) NULL');
+      console.log('✅ Added users.password_hash');
+    }
+    if (!(await columnExists(connection, 'vendors', 'password_hash'))) {
+      await connection.query('ALTER TABLE vendors ADD COLUMN password_hash VARCHAR(255) NULL');
+      console.log('✅ Added vendors.password_hash');
+    }
+
+    // Additive migration: numerical stock quantity tracking (Phase 9)
+    if (!(await columnExists(connection, 'products', 'stock_quantity'))) {
+      await connection.query('ALTER TABLE products ADD COLUMN stock_quantity INT NOT NULL DEFAULT 50');
+      await connection.query("UPDATE products SET stock_quantity = 0 WHERE stock_status = 'out_of_stock'");
+      console.log('✅ Added products.stock_quantity');
+    }
+
     connection.release();
-    console.log('✅ TiDB Cloud tables (users, vendors, categories, products, orders, order_items, reviews) ready & clean (no dummy data)!');
+    console.log('✅ TiDB Cloud tables (users, vendors, categories, products, orders, order_items, reviews, admins, customer_addresses) ready & clean (no dummy data)!');
   } catch (error) {
     console.error('❌ Error initializing TiDB Cloud database:', error.message);
   }

@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ShoppingBag, Truck, Banknote, Tag, ArrowRight, Lock, CheckCircle2 } from 'lucide-react';
-import { addCustomer, addOrder } from '../utils/storage';
+import { addCustomer, saveCustomerSession } from '../utils/storage';
+import api from '../utils/api';
 import {
   formatINR,
   computeTotals,
@@ -13,7 +14,7 @@ import { PageHero } from '../components/ui/PageHeader';
 import { EmptyState } from '../components/ui/States';
 import PhonePe from '../components/checkout/PhonePe';
 import PaymentStates from '../components/checkout/PaymentStates';
-import { initiatePhonePePayment } from '../components/checkout/paymentGateway';
+import { createPhonePePayment } from '../components/checkout/paymentGateway';
 import './Checkout.css';
 
 const DELIVERY_ICONS = { standard: Truck, express: Truck };
@@ -108,102 +109,139 @@ export default function Checkout({ cartItems, clearCart, loggedInCustomer, onCus
     setSubmitting(true);
     const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
 
-    /* Existing auto-account behaviour: create or log in the customer silently. */
+    /* Auto-account: register the guest with the server so the account is
+     * usable anywhere (bcrypt-hashed, no plaintext email or local store). */
     let autoCredentials = null;
     if (!loggedInCustomer) {
       const generatedPassword = Math.random().toString(36).slice(-8) + 'A1!';
-      const created = addCustomer({
-        name: fullName,
-        email: email.trim(),
-        phone: phone.trim(),
-        address: street.trim(),
-        city: city.trim(),
-        state: stateCode,
-        postcode: postcode.trim(),
-        password: generatedPassword
-      });
-
-      if (created?.success && created.customer) {
-        onCustomerLogin?.(created.customer);
-        autoCredentials = { email: email.trim(), password: generatedPassword, isNew: true };
-        try {
-          const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-          await fetch(`${apiUrl}/api/send-welcome`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: fullName, email: email.trim(), password: generatedPassword })
-          });
-        } catch {
-          /* Backend email service unavailable in this release — account still works locally. */
+      try {
+        const data = await api.userRegister({
+          name: fullName,
+          email: email.trim(),
+          password: generatedPassword,
+          phone: phone.trim()
+        });
+        if (data?.success && data.user && data.token) {
+          saveCustomerSession(data.user, data.token);
+          addCustomer({ ...data.user, address: street.trim(), city: city.trim(), state: stateCode, postcode: postcode.trim() });
+          onCustomerLogin?.(data.user);
+          autoCredentials = { email: email.trim(), password: generatedPassword, isNew: true };
+        } else if (data?.error) {
+          // Existing account or another registration error — continue the
+          // order as a checkout tied to that email; confirmation page will
+          // suggest signing in.
+          autoCredentials = { email: email.trim(), isNew: false, notice: data.error };
         }
-      } else if (created?.customer) {
-        onCustomerLogin?.(created.customer);
-        autoCredentials = { email: email.trim(), isNew: false };
+      } catch {
+        // API unreachable — the order still completes with the local cache.
+        const created = addCustomer({
+          name: fullName,
+          email: email.trim(),
+          phone: phone.trim(),
+          address: street.trim(),
+          city: city.trim(),
+          state: stateCode,
+          postcode: postcode.trim()
+        });
+        if (created?.success && created.customer) {
+          onCustomerLogin?.(created.customer);
+        }
       }
     }
 
-    /* PhonePe handoff — the order is not created if the payment fails. */
-    let payment = null;
+    /* Step 1: Create the order server-side first to get a real orderId. */
+    let serverOrder = null;
+    try {
+      const orderPayload = {
+        customerName: fullName,
+        customerEmail: email.trim(),
+        customerPhone: phone.trim(),
+        shippingAddress: {
+          street: street.trim(),
+          city: city.trim(),
+          state: stateCode,
+          postcode: postcode.trim()
+        },
+        items: items.map((item) => ({
+          id: item.id,
+          productId: item.id,
+          title: item.title,
+          price: item.price,
+          image: item.image,
+          variant: item.variant || null,
+          quantity: item.quantity,
+          vendorId: item.vendorId || null
+        })),
+        couponCode: couponResult?.ok ? couponResult.coupon.code : null,
+        deliveryMethod: deliveryId,
+        paymentMethod
+      };
+      const result = await api.createOrder(orderPayload);
+      if (result?.success && result.order) {
+        serverOrder = result.order;
+        try {
+          const orders = JSON.parse(localStorage.getItem('ecshopping_orders') || '[]');
+          orders.unshift({ ...serverOrder, serverVerified: true });
+          localStorage.setItem('ecshopping_orders', JSON.stringify(orders));
+        } catch { /* storage unavailable */ }
+      } else {
+        throw new Error(result?.error || 'Order could not be placed. Please try again.');
+      }
+    } catch (err) {
+      setErrors({ form: err.message || 'Order could not be placed. Please try again.' });
+      setSubmitting(false);
+      return;
+    }
+
+    const orderId = serverOrder.id;
+
+    /* Step 2: For PhonePe — call create-payment with the real orderId.
+     * The server reads the total from the DB; the client never supplies amount.
+     * Offline drafts (serverVerified=false) can never start a gateway payment:
+     * the gateway session and verification live entirely server-side. */
+    const serverVerified = serverOrder?.serverVerified !== false;
+    if (paymentMethod === 'phonepe' && !serverVerified) {
+      setPayState('failed');
+      setPayInfo({
+        message: 'There is no server connection to confirm this order, so the PhonePe payment cannot be started. Please retry when back online or use Cash on Delivery.',
+        missingConfig: false
+      });
+      setSubmitting(false);
+      return;
+    }
     if (paymentMethod === 'phonepe') {
       setPayState('processing');
       setPayInfo(null);
-      payment = await initiatePhonePePayment({
-        orderId: `DRAFT-${Date.now()}`,
-        amount: totals.total
-      });
-      setPayInfo(payment);
-
-      if (payment.status === 'failed') {
+      try {
+        const payRes = await createPhonePePayment(orderId);
+        // payRes has { success, redirectUrl, state?, expireAt? }
+        // Save orderId in sessionStorage so the return page can verify
+        try {
+          sessionStorage.setItem('ecshopping_pending_payment', orderId);
+        } catch { /* storage unavailable */ }
+        // Redirect to PhonePe's hosted checkout page
+        window.location.href = payRes.redirectUrl;
+        // Execution stops here (browser navigates away)
+        return;
+      } catch (err) {
+        // 503 = PhonePe not configured; offer COD switch without cancelling order
+        const isMissingConfig = err?.status === 503 || err?.message?.includes('not configured');
         setPayState('failed');
+        setPayInfo({ message: err.message, missingConfig: isMissingConfig });
         setSubmitting(false);
+        // Keep the order in pending state — user can retry or switch to COD
         return;
       }
-      setPayState(payment.status === 'pending' ? 'pending' : 'success');
     }
 
-    const order = addOrder({
-      customerName: fullName,
-      customerEmail: email.trim(),
-      customerPhone: phone.trim(),
-      shippingAddress: {
-        street: street.trim(),
-        city: city.trim(),
-        state: stateCode,
-        postcode: postcode.trim()
-      },
-      email: email.trim(),
-      items: items.map((item) => ({
-        id: item.id,
-        title: item.title,
-        price: item.price,
-        image: item.image,
-        variant: item.variant || null,
-        quantity: item.quantity,
-        seller: item.seller || item.soldBy || 'EcShopping Seller',
-        vendorId: item.vendorId || null
-      })),
-      subtotal: totals.subtotal,
-      discount: totals.discount,
-      shipping: totals.shipping,
-      total: totals.total,
-      totalAmount: totals.total,
-      couponCode: couponResult?.ok ? couponResult.coupon.code : null,
-      deliveryMethod: deliveryId,
-      paymentMethod,
-      paymentStatus: paymentMethod === 'phonepe' ? (payment.status === 'pending' ? 'pending' : 'paid') : 'pending',
-      paymentReference: payment?.reference || null,
-      paymentNote: payment?.message || null
-    });
-
+    /* COD path: navigate directly to confirmation */
     try {
-      localStorage.setItem('ecshopping_last_order', JSON.stringify(order));
-    } catch {
-      /* storage unavailable — confirmation page falls back to route state */
-    }
+      localStorage.setItem('ecshopping_last_order', JSON.stringify(serverOrder));
+    } catch { /* storage unavailable */ }
 
     clearCart?.();
     setSubmitting(false);
-    navigate(`/order-confirmation/${order.id}`, { state: { order, autoCredentials, payment } });
+    navigate(`/order-confirmation/${orderId}`, { state: { order: serverOrder, autoCredentials } });
   };
 
   const setPayment = (method) => {
@@ -225,6 +263,9 @@ export default function Checkout({ cartItems, clearCart, loggedInCustomer, onCus
       />
 
       <form className="container checkout-layout" onSubmit={placeOrder} noValidate>
+        {errors.form && (
+          <p className="field-error" role="alert" style={{ marginBottom: '1rem' }}>{errors.form}</p>
+        )}
         <div className="checkout-main">
           {/* 1 — Contact */}
           <section className="panel co-section">

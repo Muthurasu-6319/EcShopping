@@ -45,7 +45,7 @@ export default function Cart({ cartItems, updateQuantity, removeItem }) {
               actions={
                 <>
                   <Link to="/shop" className="btn btn-primary">Return to shop <ArrowRight size={16} /></Link>
-                  <Link to="/collection/bestsellers" className="btn btn-ghost">See bestsellers</Link>
+                  <Link to="/collection/new-arrivals" className="btn btn-ghost">See new arrivals</Link>
                 </>
               }
             />

@@ -1,133 +1,246 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Truck, ShieldCheck, RotateCcw, Sprout, IndianRupee, HeartHandshake, Quote, Mail, Star, PackageCheck, ShoppingBasket, Wallet, CalendarClock, Play, X } from 'lucide-react';
 import {
-  categories,
-  collections,
-  products,
-  getCollection,
-  getCatalogProducts,
+  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
+  Truck,
+  ShieldCheck,
+  RotateCcw,
+  Sprout,
+  IndianRupee,
+  HeartHandshake,
+  Quote,
+  Mail,
+  PackageCheck,
+  ShoppingBasket,
+  Wallet,
+  Play,
+  X,
+  Sparkles,
+  Layers
+} from 'lucide-react';
+import {
   benefits,
   testimonials,
-  concerns,
   shopVideos,
-  marqueeMessages
-} from '../../data/catalog';
+  marqueeMessages,
+  collectionDisplay
+} from '../../data/content';
 import ProductCard from '../ui/ProductCard';
 import SectionHead from '../ui/SectionHead';
-import heroImg from '../../assets/hero.png';
-import leafTopRight from '../../assets/corner-leaves-top-right.png';
+import { ErrorState } from '../ui/States';
 import './home.css';
 
 /* ---------------------------------------------------------------
-   Hero
+   1. Compact Horizontal Category Navigation (Amazon/Flipkart style)
+   Clean, space-efficient category bar directly underneath header.
    --------------------------------------------------------------- */
 
-export function Hero() {
-  const featured = [
-    { id: 'hero-fresh', image: categories[0]?.image, badge: 'Farm fresh' },
-    { id: 'hero-pantry', image: categories[1]?.image, badge: '' },
-    { id: 'hero-dairy', image: categories[2]?.image, badge: '' }
-  ];
-  const [lead, ...side] = featured;
+export function CompactCategoryNav({ categories = [], loading = false }) {
+  if (loading) {
+    return (
+      <nav className="compact-cat-nav" aria-label="Category navigation">
+        <div className="container compact-cat-track skeleton-nav">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="compact-cat-pill skeleton" style={{ width: 90, height: 36 }} />
+          ))}
+        </div>
+      </nav>
+    );
+  }
+
+  const activeCategories = categories.filter(
+    (c) => c.name && c.name.toLowerCase() !== 'test' && c.name.toLowerCase() !== 'organic'
+  );
+  if (!activeCategories.length) return null;
 
   return (
-    <section className="hero">
-      <div className="hero-deco" aria-hidden="true">
-        <img src={leafTopRight} alt="" className="hero-deco-leaf leaf-tr" />
-        <span className="hero-blob hero-blob-1" />
-        <span className="hero-blob hero-blob-2" />
+    <nav className="compact-cat-nav" aria-label="Quick Category navigation">
+      <div className="container compact-cat-track">
+        <Link to="/shop" className="compact-cat-item all-categories-pill">
+          <Layers size={16} />
+          <span>All Items</span>
+        </Link>
+        {activeCategories.map((cat) => (
+          <Link key={cat.slug} to={`/category/${cat.slug}`} className="compact-cat-item">
+            <div className="compact-cat-thumb">
+              <img src={cat.image} alt="" width="32" height="32" loading="lazy" />
+            </div>
+            <span className="compact-cat-label">{cat.title}</span>
+          </Link>
+        ))}
       </div>
-
-      <div className="container hero-inner">
-        <div className="hero-copy">
-          <span className="hero-eyebrow"><Sprout size={15} /> Farm-direct marketplace</span>
-          <h1>
-            Local sellers, <em>delivered fresh</em> to your doorstep.
-          </h1>
-          <p className="hero-lead">
-            Shop produce, pantry staples, dairy, livestock and handmade goods from
-            identity-verified sellers across Tamil Nadu — with honest specs and transparent pricing.
-          </p>
-
-          <div className="hero-ctas">
-            <Link to="/shop" className="btn btn-primary btn-lg">
-              Shop all products <ArrowRight size={17} />
-            </Link>
-            <Link to="/collection/bestsellers" className="btn btn-outline btn-lg">
-              Browse bestsellers
-            </Link>
-          </div>
-
-          <ul className="hero-trust">
-            <li><ShieldCheck size={16} /> Verified sellers</li>
-            <li><Truck size={16} /> Free delivery over ₹1,499</li>
-            <li><RotateCcw size={16} /> 48-hour replacements</li>
-          </ul>
-        </div>
-
-        <div className="hero-collage" aria-hidden="true">
-          <div className="hero-collage-main">
-            <img
-              src={lead?.image || heroImg}
-              alt=""
-              width="520"
-              height="650"
-            />
-            <span className="hero-collage-tag">{lead?.badge || 'Fresh pick'}</span>
-          </div>
-
-          <div className="hero-collage-side">
-            {side.map((product) => (
-              <div className="hero-collage-tile" key={product.id}>
-                <img src={product.image} alt="" width="300" height="300" loading="lazy" />
-              </div>
-            ))}
-          </div>
-
-          <div className="hero-float hero-float-1">
-            <span className="hero-float-icon"><CalendarClock size={17} /></span>
-            <span><strong>Same-day dispatch</strong><small>Orders before 4 PM</small></span>
-          </div>
-          <div className="hero-float hero-float-2">
-            <span className="hero-float-icon gold"><PackageCheck size={17} /></span>
-            <span><strong>{products.length}+ products live</strong><small>{categories.length} categories, verified sellers</small></span>
-          </div>
-        </div>
-      </div>
-    </section>
+    </nav>
   );
 }
 
 /* ---------------------------------------------------------------
-   Categories
+   2. Restrained Marketplace Banner (Secondary to shopping)
+   Substantially reduced height (~120-140px) to prevent pushing
+   products below the fold.
    --------------------------------------------------------------- */
 
-export function CategoryGrid() {
+export function CompactMarketplaceBanner() {
   return (
-    <section className="section category-section">
-      <div className="container">
-        <SectionHead
-          center
-          eyebrow="Taste the difference"
-          title="Shop by category"
-          subtitle="Six everyday categories, filled by sellers who source and produce locally."
-        />
+    <div className="compact-mkt-banner">
+      <div className="container compact-mkt-inner">
+        <div className="compact-mkt-copy">
+          <span className="compact-mkt-tag">
+            <Sparkles size={13} /> Direct from Local Farmers & Cooperatives
+          </span>
+          <h2>Authentic Farm Organics & Daily Staples</h2>
+          <p>Cold-pressed oils, raw forest honey, farm vegetables & A2 dairy across Tamil Nadu.</p>
+        </div>
+        <div className="compact-mkt-actions">
+          <Link to="/collection/deals" className="btn btn-accent btn-sm">
+            Deals of the Day <ArrowRight size={14} />
+          </Link>
+          <Link to="/shop" className="btn btn-outline-light btn-sm">
+            Browse All Aisles
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-        <div className="cat-circle-grid">
-          {categories.map((cat) => (
-            <Link key={cat.slug} to={`/category/${cat.slug}`} className="cat-circle">
-              <span className="cat-circle-media">
-                <img src={cat.image} alt="" width="240" height="240" loading="lazy" />
-              </span>
-              <span className="cat-circle-title">{cat.title}</span>
-              <span className="cat-circle-sub">{cat.tagline}</span>
+/* ---------------------------------------------------------------
+   3. Shop by Category (Compact image tiles)
+   Dense, space-efficient category cards inspired by Flipkart/Amazon.
+   --------------------------------------------------------------- */
+
+export function CompactCategoryTiles({ categories = [], loading = false }) {
+  const activeCategories = categories.filter(
+    (c) => c.name && c.name.toLowerCase() !== 'test' && c.name.toLowerCase() !== 'organic'
+  );
+  if (!activeCategories.length && !loading) return null;
+
+  return (
+    <section className="section-compact cat-tiles-section">
+      <div className="container">
+        <div className="section-head-split">
+          <div>
+            <span className="eyebrow">Explore Aisles</span>
+            <h2 className="title">Shop by Category</h2>
+          </div>
+          <Link to="/shop" className="retail-view-all-link">
+            All Categories <ArrowRight size={15} />
+          </Link>
+        </div>
+
+        <div className="compact-cat-tiles-grid">
+          {activeCategories.map((cat) => (
+            <Link key={cat.slug} to={`/category/${cat.slug}`} className="compact-tile-card">
+              <div className="compact-tile-media">
+                <img src={cat.image} alt={cat.title} width="160" height="110" loading="lazy" />
+              </div>
+              <div className="compact-tile-body">
+                <h4 className="compact-tile-title">{cat.title}</h4>
+                <span className="compact-tile-count">
+                  {cat.productsCount ? `${cat.productsCount} ${cat.productsCount === 1 ? 'item' : 'items'}` : 'Explore'}
+                </span>
+              </div>
             </Link>
           ))}
         </div>
+      </div>
+    </section>
+  );
+}
 
-        <div className="cat-all-row">
-          <Link to="/shop" className="link-more">View all products <ArrowRight size={15} /></Link>
+/* ---------------------------------------------------------------
+   4. Compact Trust / Policy Bar (Bottom reassurance)
+   Restrained horizontal bar placed near bottom, never dominating
+   the top shopping view.
+   --------------------------------------------------------------- */
+
+export function CompactTrustBar() {
+  const trustFeatures = [
+    { icon: Truck, title: 'Free Delivery', desc: 'On all orders above ₹499' },
+    { icon: ShieldCheck, title: '100% Quality Tested', desc: 'Residue & chemical free' },
+    { icon: RotateCcw, title: '48-Hour Replacements', desc: 'Hassle-free doorstep claim' },
+    { icon: IndianRupee, title: 'COD & Secure PhonePe', desc: 'Pay at door or via UPI' }
+  ];
+
+  return (
+    <section className="compact-trust-strip">
+      <div className="container compact-trust-grid">
+        {trustFeatures.map((item) => {
+          const Icon = item.icon;
+          return (
+            <div className="compact-trust-col" key={item.title}>
+              <div className="compact-trust-icon">
+                <Icon size={20} />
+              </div>
+              <div className="compact-trust-text">
+                <h4>{item.title}</h4>
+                <p>{item.desc}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/* ---------------------------------------------------------------
+   Product rail (Dense, marketplace product display)
+   --------------------------------------------------------------- */
+
+export function ProductRail({
+  eyebrow,
+  title,
+  subtitle,
+  linkTo,
+  linkLabel,
+  items = [],
+  loading = false,
+  tone = 'plain',
+  onAddToCart
+}) {
+  if (loading) {
+    return (
+      <section className={`section-compact rail-section tone-${tone}`} aria-hidden="true">
+        <div className="container">
+          <div className="skeleton sk-line short" style={{ height: 22, width: 200, marginBottom: 14 }} />
+          <div className="product-grid cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div className="skeleton-card" key={i}>
+                <div className="skeleton sk-media" />
+                <div className="skeleton sk-line tiny" />
+                <div className="skeleton sk-line" />
+                <div className="skeleton sk-line short" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (!items.length) return null;
+
+  return (
+    <section className={`section-compact rail-section tone-${tone}`}>
+      <div className="container">
+        <div className="rail-head-flex">
+          <div>
+            {eyebrow && <span className="rail-eyebrow">{eyebrow}</span>}
+            <h2 className="rail-title">{title}</h2>
+            {subtitle && <p className="rail-subtitle">{subtitle}</p>}
+          </div>
+          {linkTo && linkLabel && (
+            <Link to={linkTo} className="rail-more-link">
+              {linkLabel} <ArrowRight size={15} />
+            </Link>
+          )}
+        </div>
+        <div className="product-grid cols-4">
+          {items.slice(0, 8).map((product) => (
+            <ProductCard key={product.id} product={product} onAddToCart={onAddToCart} />
+          ))}
         </div>
       </div>
     </section>
@@ -135,100 +248,153 @@ export function CategoryGrid() {
 }
 
 /* ---------------------------------------------------------------
-   Promotional banners
+   Per-category rails (server categories + server products)
    --------------------------------------------------------------- */
 
-export function PromoBanners() {
-  const farmFresh = getCollection('farm-fresh');
-  const deals = getCollection('deals');
-  const banners = [
-    { collection: farmFresh, eyebrow: 'Fresh this week', tone: 'green' },
-    { collection: deals, eyebrow: 'Limited time', tone: 'amber' }
-  ].filter((banner) => banner.collection);
+export function CategoryRails({ rails = [], loading = false, error = null, onRetry = null, onAddToCart }) {
+  if (error) {
+    return (
+      <section className="section-compact rail-section">
+        <div className="container">
+          <ErrorState
+            title="Product rails could not be loaded"
+            text={error.message || 'We could not reach the server. Please try again.'}
+            actions={onRetry && <button type="button" className="btn btn-primary" onClick={onRetry}>Try again</button>}
+          />
+        </div>
+      </section>
+    );
+  }
 
-  if (!banners.length) return null;
+  if (loading) {
+    return (
+      <section className="section-compact rail-section" aria-hidden="true">
+        <div className="container">
+          <div className="skeleton sk-line short" style={{ height: 22, width: 200, marginBottom: 14 }} />
+          <div className="product-grid cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div className="skeleton-card" key={i}>
+                <div className="skeleton sk-media" />
+                <div className="skeleton sk-line tiny" />
+                <div className="skeleton sk-line" />
+                <div className="skeleton sk-line short" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <>
+      {rails
+        .filter((rail) => rail.items.length > 0)
+        .map(({ category, items }) => (
+          <section className="section-compact rail-section" key={category.slug}>
+            <div className="container">
+              <div className="rail-head-flex">
+                <div>
+                  <span className="rail-eyebrow">Aisle Shelf</span>
+                  <h2 className="rail-title">{category.title}</h2>
+                  {category.blurb && <p className="rail-subtitle">{category.blurb}</p>}
+                </div>
+                <Link to={`/category/${category.slug}`} className="rail-more-link">
+                  See all in {category.title} <ArrowRight size={15} />
+                </Link>
+              </div>
+              <div className="product-grid cols-4">
+                {items.slice(0, 8).map((product) => (
+                  <ProductCard key={product.id} product={product} onAddToCart={onAddToCart} />
+                ))}
+              </div>
+            </div>
+          </section>
+        ))}
+    </>
+  );
+}
+
+/* ---------------------------------------------------------------
+   Backward-compatible / Supporting exports
+   --------------------------------------------------------------- */
+
+export const QuickCategoryRow = CompactCategoryNav;
+export const CategoryGrid = CompactCategoryTiles;
+export const TrustBadgesRow = CompactTrustBar;
+
+const HERO_SLIDES = [
+  {
+    id: 1,
+    badge: 'Direct from Verified Local Farms',
+    title: 'Wood-Pressed Oils & Traditional Grains',
+    subtitle: 'Stone ground and cold-pressed for authentic aroma, wholesome nutrition, and zero chemicals.',
+    image: 'https://images.unsplash.com/photo-1611077543781-a96c138b1d98?auto=format&fit=crop&w=1200&q=80',
+    primaryCta: { label: 'Shop Cold-Pressed Oils', to: '/category/pantry-staples' },
+    secondaryCta: { label: 'Explore All Products', to: '/shop' }
+  }
+];
+
+export function HeroCarousel() {
+  return <CompactMarketplaceBanner />;
+}
+
+export const Hero = HeroCarousel;
+
+export function ShopByNeedGrid() {
+  return null; // Suppressed from landing to maintain pure marketplace density
+}
+
+export function PromoBanners() {
+  const deals = collectionDisplay.deals;
+  if (!deals) return null;
 
   return (
     <section className="section-tight">
       <div className="container promo-grid">
-        {banners.map(({ collection, eyebrow, tone }) => (
-          <Link
-            key={collection.slug}
-            to={`/collection/${collection.slug}`}
-            className={`promo-banner promo-${tone}`}
-          >
-            <div className="promo-copy">
-              <span className="promo-eyebrow">{eyebrow}</span>
-              <h3>{collection.title}</h3>
-              <p>{collection.subtitle}</p>
-              <span className="promo-link">Shop now <ArrowRight size={15} /></span>
-            </div>
-            <img src={collection.image} alt="" width="640" height="420" loading="lazy" />
-          </Link>
-        ))}
+        <Link to="/collection/deals" className="promo-banner promo-amber">
+          <div className="promo-copy">
+            <span className="promo-eyebrow">Limited time</span>
+            <h3>{deals.title}</h3>
+            <p>{deals.subtitle}</p>
+            <span className="promo-link">Shop now <ArrowRight size={15} /></span>
+          </div>
+          <img src={deals.image} alt="" width="640" height="420" loading="lazy" />
+        </Link>
       </div>
     </section>
   );
 }
 
-/* ---------------------------------------------------------------
-   Collections
-   --------------------------------------------------------------- */
+export function CollectionsStrip({ newArrivalsCount = null, dealsCount = null, loading = false }) {
+  const entries = [
+    { slug: 'new-arrivals', to: '/collection/new-arrivals', count: newArrivalsCount },
+    { slug: 'deals', to: '/collection/deals', count: dealsCount }
+  ];
 
-export function CollectionsStrip() {
+  if (loading) return null;
+
   return (
-    <section className="section section-alt">
+    <section className="section-compact section-alt">
       <div className="container">
         <SectionHead
           eyebrow="Featured collections"
-          title="Curated by our team each week"
-          subtitle="Hand-picked groupings so you can shop a mood, a recipe or a restock in one go."
+          title="Start from what just landed"
+          subtitle="New listings straight from our sellers, plus limited-time price drops."
         />
-
         <div className="coll-grid">
-          {collections.map((coll) => (
-            <Link key={coll.slug} to={`/collection/${coll.slug}`} className="coll-card">
-              <img src={coll.image} alt="" width="640" height="400" loading="lazy" />
-              <div className="coll-overlay">
-                <span className="coll-count">{coll.productIds.length} products</span>
-                <h3>{coll.title}</h3>
-                <p>{coll.subtitle}</p>
-                <span className="coll-link">Shop collection <ArrowRight size={14} /></span>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ---------------------------------------------------------------
-   Shop by concern
-   --------------------------------------------------------------- */
-
-export function ConcernGrid() {
-  return (
-    <section className="section section-alt">
-      <div className="container">
-        <SectionHead
-          center
-          eyebrow="Shop by concern"
-          title="Products tailored to your health and wellness needs"
-          subtitle="Pick a concern and we will show the pantry, produce and everyday essentials that fit."
-        />
-
-        <div className="concern-grid">
-          {concerns.map((concern) => {
-            const collection = getCollection(concern.slug);
+          {entries.map(({ slug, to, count }) => {
+            const coll = collectionDisplay[slug];
+            if (!coll) return null;
             return (
-              <Link key={concern.slug} to={`/collection/${concern.slug}`} className="concern-card">
-                <span className="concern-emoji" aria-hidden="true">{concern.emoji}</span>
-                <span className="concern-title">{concern.title}</span>
-                <span className="concern-count">
-                  {collection ? `${collection.productIds.length} products` : 'Explore'}
-                </span>
-                <span className="concern-link">Shop now <ArrowRight size={13} /></span>
+              <Link key={slug} to={to} className="coll-card">
+                <img src={coll.image} alt="" width="640" height="400" loading="lazy" />
+                <div className="coll-overlay">
+                  {typeof count === 'number' && <span className="coll-count">{count} products</span>}
+                  <h3>{coll.title}</h3>
+                  <p>{coll.subtitle}</p>
+                  <span className="coll-link">Shop collection <ArrowRight size={14} /></span>
+                </div>
               </Link>
             );
           })}
@@ -237,10 +403,6 @@ export function ConcernGrid() {
     </section>
   );
 }
-
-/* ---------------------------------------------------------------
-   Shop by videos
-   --------------------------------------------------------------- */
 
 export function VideoShop() {
   const [activeVideo, setActiveVideo] = useState(null);
@@ -259,41 +421,33 @@ export function VideoShop() {
   }, [activeVideo]);
 
   const close = () => setActiveVideo(null);
-  const activeProduct = activeVideo
-    ? products.find((p) => p.id === activeVideo.productId)
-    : null;
 
   return (
-    <section className="section">
+    <section className="section-compact">
       <div className="container">
         <SectionHead
           eyebrow="Shop by videos"
           title="See the products in action"
           subtitle="Short clips from our partner farms, kitchens and packing hubs."
         />
-
         <div className="video-grid">
-          {shopVideos.map((video) => {
-            const product = products.find((p) => p.id === video.productId);
-            return (
-              <button
-                key={video.id}
-                type="button"
-                className="video-card"
-                onClick={() => setActiveVideo(video)}
-                aria-label={`Play video: ${video.title}`}
-              >
-                <img src={video.poster} alt="" loading="lazy" />
-                <span className="video-play" aria-hidden="true">
-                  <Play size={20} fill="currentColor" />
-                </span>
-                <span className="video-caption">
-                  <strong>{video.title}</strong>
-                  {product && <small>Shop {product.title}</small>}
-                </span>
-              </button>
-            );
-          })}
+          {shopVideos.map((video) => (
+            <button
+              key={video.id}
+              type="button"
+              className="video-card"
+              onClick={() => setActiveVideo(video)}
+              aria-label={`Play video: ${video.title}`}
+            >
+              <img src={video.poster} alt="" loading="lazy" />
+              <span className="video-play" aria-hidden="true">
+                <Play size={20} fill="currentColor" />
+              </span>
+              <span className="video-caption">
+                <strong>{video.title}</strong>
+              </span>
+            </button>
+          ))}
         </div>
       </div>
 
@@ -302,14 +456,7 @@ export function VideoShop() {
           <button type="button" className="video-modal-backdrop" onClick={close} aria-label="Close video" />
           <div className="video-modal-panel">
             <div className="video-modal-head">
-              <div>
-                <h3>{activeVideo.title}</h3>
-                {activeProduct && (
-                  <Link to={`/product/${activeProduct.id}`} onClick={close} className="video-modal-link">
-                    Shop {activeProduct.title} <ArrowRight size={14} />
-                  </Link>
-                )}
-              </div>
+              <h3>{activeVideo.title}</h3>
               <button type="button" className="video-modal-close" onClick={close} aria-label="Close video">
                 <X size={20} />
               </button>
@@ -322,47 +469,6 @@ export function VideoShop() {
   );
 }
 
-/* ---------------------------------------------------------------
-   Per-category rails
-   --------------------------------------------------------------- */
-
-export function CategoryRails({ onAddToCart }) {
-  const allProducts = getCatalogProducts();
-  const rails = categories
-    .map((category) => ({
-      category,
-      items: allProducts.filter((p) => p.category === category.slug)
-    }))
-    .filter((rail) => rail.items.length > 0);
-
-  return (
-    <>
-      {rails.map(({ category, items }) => (
-        <section className="section rail-section" key={category.slug}>
-          <div className="container">
-            <SectionHead
-              eyebrow="Shop by category"
-              title={category.title}
-              subtitle={category.blurb}
-              linkTo={`/category/${category.slug}`}
-              linkLabel={`Shop ${category.title}`}
-            />
-            <div className="product-grid cols-4">
-              {items.slice(0, 8).map((product) => (
-                <ProductCard key={product.id} product={product} onAddToCart={onAddToCart} />
-              ))}
-            </div>
-          </div>
-        </section>
-      ))}
-    </>
-  );
-}
-
-/* ---------------------------------------------------------------
-   Marquee trust band
-   --------------------------------------------------------------- */
-
 export function MarqueeStrip() {
   const items = [...marqueeMessages, ...marqueeMessages];
 
@@ -371,7 +477,7 @@ export function MarqueeStrip() {
       <div className="marquee-track">
         {items.map((message, index) => (
           <span className="marquee-item" key={`${message}-${index}`}>
-            <Sprout size={15} aria-hidden="true" />
+            <Sprout size={14} aria-hidden="true" />
             {message}
           </span>
         ))}
@@ -380,50 +486,16 @@ export function MarqueeStrip() {
   );
 }
 
-/* ---------------------------------------------------------------
-   Product rail (reused for bestsellers / new arrivals / deals)
-   --------------------------------------------------------------- */
-
-export function ProductRail({
-  eyebrow,
-  title,
-  subtitle,
-  linkTo,
-  linkLabel,
-  items = [],
-  tone = 'plain',
-  onAddToCart
-}) {
-  if (!items.length) return null;
-
-  return (
-    <section className={`section rail-section tone-${tone}`}>
-      <div className="container">
-        <SectionHead eyebrow={eyebrow} title={title} subtitle={subtitle} linkTo={linkTo} linkLabel={linkLabel} />
-        <div className="product-grid cols-4">
-          {items.slice(0, 8).map((product) => (
-            <ProductCard key={product.id} product={product} onAddToCart={onAddToCart} />
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ---------------------------------------------------------------
-   Ordering steps
-   --------------------------------------------------------------- */
-
 const orderSteps = [
   { icon: ShoppingBasket, title: 'Pick your items', text: 'Browse categories or search for a specific product and add it to your cart.' },
-  { icon: Wallet, title: 'Choose payment', text: 'Pay online with PhonePe or choose cash on delivery at checkout.' },
+  { icon: Wallet, title: 'Choose payment', text: 'Pay online or choose cash on delivery at checkout.' },
   { icon: PackageCheck, title: 'We pack it fresh', text: 'Sellers pack your order the same day, with produce picked that morning.' },
   { icon: Truck, title: 'Track to your door', text: 'Follow each step on the order timeline until it reaches your address.' }
 ];
 
 export function OrderingSteps() {
   return (
-    <section className="section section-tint">
+    <section className="section-compact section-tint">
       <div className="container">
         <SectionHead
           center
@@ -431,7 +503,6 @@ export function OrderingSteps() {
           title="Four simple steps from cart to doorstep"
           subtitle="The whole flow is designed to stay predictable — you always know what happens next."
         />
-
         <div className="steps-row">
           {orderSteps.map((step, index) => {
             const Icon = step.icon;
@@ -450,15 +521,11 @@ export function OrderingSteps() {
   );
 }
 
-/* ---------------------------------------------------------------
-   Benefits & trust
-   --------------------------------------------------------------- */
-
 const iconMap = { Sprout, Truck, ShieldCheck, RotateCcw, IndianRupee, HeartHandshake };
 
-export function BenefitsGrid() {
+export function BenefitsGrid({ loading = false, productsTotal = null, categoriesCount = null }) {
   return (
-    <section className="section">
+    <section className="section-compact">
       <div className="container">
         <SectionHead
           center
@@ -466,7 +533,6 @@ export function BenefitsGrid() {
           title="Built on trust, not on discounts alone"
           subtitle="Marketplaces work when both sides win. Here is what we hold ourselves to."
         />
-
         <div className="benefits-grid">
           {benefits.map((benefit) => {
             const Icon = iconMap[benefit.icon] || ShieldCheck;
@@ -483,70 +549,62 @@ export function BenefitsGrid() {
         </div>
 
         <div className="trust-strip">
-          <div className="stat"><span className="stat-value">{products.length}+</span><span className="stat-label">Live listings</span></div>
-          <div className="stat"><span className="stat-value">{categories.length}</span><span className="stat-label">Categories</span></div>
-          <div className="stat"><span className="stat-value">4.7</span><span className="stat-label">Average rating</span></div>
-          <div className="stat"><span className="stat-value">48 h</span><span className="stat-label">Replacement window</span></div>
+          <div className="stat">
+            <span className="stat-value">{loading || productsTotal === null ? '—' : productsTotal}</span>
+            <span className="stat-label">Live listings</span>
+          </div>
+          <div className="stat">
+            <span className="stat-value">{loading || categoriesCount === null ? '—' : categoriesCount}</span>
+            <span className="stat-label">Categories</span>
+          </div>
+          <div className="stat">
+            <span className="stat-value">48 h</span>
+            <span className="stat-label">Replacement window</span>
+          </div>
+          <div className="stat">
+            <span className="stat-value">{loading ? '—' : '₹499'}</span>
+            <span className="stat-label">Free delivery over</span>
+          </div>
         </div>
       </div>
     </section>
   );
 }
 
-/* ---------------------------------------------------------------
-   Testimonials
-   --------------------------------------------------------------- */
-
 export function TestimonialsSection() {
   const initials = (name) => name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 
   return (
-    <section className="section section-alt">
+    <section className="section-compact section-alt">
       <div className="container">
         <SectionHead
           center
           eyebrow="Customer voices"
           title="What buyers say about their orders"
         />
-
         <div className="quote-grid">
-          {testimonials.map((t) => {
-            const product = products.find((p) => p.id === t.productId);
-            return (
-              <figure className="quote-card" key={t.id}>
-                <Quote size={22} className="quote-mark" />
-                <div className="quote-stars" aria-label={`${t.rating} out of 5 stars`}>
-                  {[0, 1, 2, 3, 4].map((i) => (
-                    <Star key={i} size={14} fill={i < t.rating ? 'currentColor' : 'none'} />
-                  ))}
-                </div>
-                <blockquote className="quote-text">“{t.text}”</blockquote>
-                <figcaption className="quote-meta">
-                  <span className="avatar sm accent">{initials(t.name)}</span>
-                  <span>
-                    <span className="quote-name">{t.name}</span>
-                    <span className="quote-loc">{t.location}</span>
-                  </span>
-                  {product && (
-                    <img className="quote-product" src={product.image} alt={product.title} width="46" height="46" loading="lazy" />
-                  )}
-                </figcaption>
-              </figure>
-            );
-          })}
+          {testimonials.map((t) => (
+            <figure className="quote-card" key={t.id}>
+              <Quote size={20} className="quote-mark" />
+              <blockquote className="quote-text">“{t.text}”</blockquote>
+              <figcaption className="quote-meta">
+                <span className="avatar sm accent">{initials(t.name)}</span>
+                <span>
+                  <span className="quote-name">{t.name}</span>
+                  <span className="quote-loc">{t.location}</span>
+                </span>
+              </figcaption>
+            </figure>
+          ))}
         </div>
       </div>
     </section>
   );
 }
 
-/* ---------------------------------------------------------------
-   Newsletter CTA
-   --------------------------------------------------------------- */
-
 export function NewsletterCta() {
   return (
-    <section className="section">
+    <section className="section-compact">
       <div className="container">
         <div className="newsletter-cta">
           <div className="newsletter-copy">
@@ -577,9 +635,9 @@ export function NewsletterCta() {
           >
             <label className="sr-only" htmlFor="home-newsletter">Email address</label>
             <div className="newsletter-field">
-              <Mail size={17} />
+              <Mail size={16} />
               <input id="home-newsletter" name="email" type="email" placeholder="you@example.com" />
-              <button type="submit" className="btn btn-accent">Subscribe</button>
+              <button type="submit" className="btn btn-accent btn-sm">Subscribe</button>
             </div>
             <p className="newsletter-inline-msg" role="status" aria-live="polite" />
           </form>

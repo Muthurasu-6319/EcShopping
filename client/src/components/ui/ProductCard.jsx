@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { Heart, ShoppingBag, Check, Star } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useCart } from '../../context/CartContext';
-import { categories } from '../../data/catalog';
+import { categoryDisplayForName, DEFAULT_CATEGORY_IMAGE } from '../../data/content';
 import { formatINR, discountPercent, parsePrice } from '../../utils/pricing';
 import './ui.css';
 
@@ -70,10 +70,10 @@ export default function ProductCard({ product, onAddToCart, showVariants = true,
             loading="lazy"
             width="440"
             height="440"
-            onError={(e) => {
-              const fallback = categories.find((c) => c.slug === product.category)?.image || categories[0]?.image;
-              if (fallback && e.currentTarget.src !== fallback) e.currentTarget.src = fallback;
-            }}
+          onError={(e) => {
+            const fallback = (product.category && categoryDisplayForName(product.category).image) || DEFAULT_CATEGORY_IMAGE;
+            if (fallback && e.currentTarget.src !== fallback) e.currentTarget.src = fallback;
+          }}
           />
         </Link>
 
@@ -94,21 +94,25 @@ export default function ProductCard({ product, onAddToCart, showVariants = true,
       </div>
 
       <div className="pcard-body">
-        <span className="pcard-seller">{product.seller || product.soldBy || 'EcShopping Seller'}</span>
+        <span className="pcard-seller">{product.seller || 'EcShopping Seller'}</span>
 
         <Link to={`/product/${product.id}`} className="pcard-title-link">
           <h3 className="pcard-title">{product.title}</h3>
         </Link>
 
-        <div className="rating" aria-label={`Rated ${product.rating || 0} out of 5`}>
-          <span className="rating-stars">
-            {[0, 1, 2, 3, 4].map((i) => (
-              <Star key={i} size={13} fill={i < Math.round(product.rating || 0) ? 'currentColor' : 'none'} />
-            ))}
-          </span>
-          <span className="rating-value">{Number(product.rating || 0).toFixed(1)}</span>
-          <span>({product.reviews || 0})</span>
-        </div>
+        {product.rating != null ? (
+          <div className="rating" aria-label={`Rated ${product.rating} out of 5`}>
+            <span className="rating-stars">
+              {[0, 1, 2, 3, 4].map((i) => (
+                <Star key={i} size={13} fill={i < Math.round(product.rating || 0) ? 'currentColor' : 'none'} />
+              ))}
+            </span>
+            <span className="rating-value">{Number(product.rating).toFixed(1)}</span>
+            {product.reviews != null && <span>({product.reviews})</span>}
+          </div>
+        ) : (
+          <span className="tiny muted pcard-norating">Seller hasn’t collected ratings yet</span>
+        )}
 
         {showVariants && product.variants && product.variants.length > 0 && (
           <div className="pcard-variants">

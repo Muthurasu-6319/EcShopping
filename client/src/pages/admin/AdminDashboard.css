@@ -239,3 +239,113 @@
   font-style: italic;
   font-size: 13px;
 }
+
+.admin-loading-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #64748b;
+  padding: 4px 0;
+}
+
+.admin-loading-note .spin,
+.spin {
+  animation: admin-spin 0.9s linear infinite;
+}
+
+@keyframes admin-spin {
+  to { transform: rotate(360deg); }
+}
+
+.admin-error-box {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+  padding: 20px;
+  color: #b91c1c;
+}
+
+.admin-error-box h3 {
+  margin: 0 0 8px 0;
+}
+
+.status-badge.status-payment-pending {
+  background-color: #fef3c7;
+  color: #d97706;
+}
+
+.status-badge.status-payment-paid,
+.status-badge.status-payment-success {
+  background-color: #dcfce3;
+  color: #16a34a;
+}
+
+.status-badge.status-payment-failed {
+  background-color: #fee2e2;
+  color: #dc2626;
+}
+
+.admin-cat-section {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  margin-bottom: 25px;
+  overflow: hidden;
+}
+
+.admin-cat-form-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 25px;
+}
+
+.admin-cat-form-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1.5fr 160px 130px auto;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+@media (max-width: 1024px) {
+  .admin-cat-form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.cat-scope-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.cat-scope-shared {
+  background-color: #e0e7ff;
+  color: #3730a3;
+}
+
+.cat-scope-vendor {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.admin-filter-bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.admin-filter-input {
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 13px;
+  min-width: 200px;
+}

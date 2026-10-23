@@ -2,6 +2,7 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import { Search, PackageCheck, MapPin, Clock, ArrowRight } from 'lucide-react';
 import { getOrders } from '../utils/storage';
+import { paymentStatusDisplay } from '../utils/orderSync';
 import { getDeliveryMethod } from '../utils/pricing';
 import { PageHero } from '../components/ui/PageHeader';
 import { EmptyState } from '../components/ui/States';
@@ -131,7 +132,7 @@ export default function TrackOrder({ loggedInCustomer, onOpenLogin }) {
             <div className="to-summary">
               <div>
                 <strong>{result.orderNumber || result.id}</strong>
-                <span> · Placed {formatOrderDate(result.date)} · {PAYMENT_STATUS_LABELS[result.paymentStatus] || '—'}</span>
+                <span> · Placed {formatOrderDate(result.date)} · {paymentStatusDisplay(result, PAYMENT_STATUS_LABELS)}</span>
               </div>
               <span className={statusBadgeClass(result.status)}>
                 {(result.status || 'confirmed').replace(/_/g, ' ')}

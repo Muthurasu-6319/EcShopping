@@ -13,17 +13,19 @@ import {
   Share2,
   MapPin
 } from 'lucide-react';
-import { findProduct, getRelatedProducts, categories } from '../data/catalog';
+import { mapServerProduct } from '../data/mapProduct';
+import { fetchRelatedProducts } from '../data/storefront';
+import { categoryDisplayForName } from '../data/content';
 import { formatINR, discountPercent, DELIVERY_METHODS, getDeliveryMethod } from '../utils/pricing';
 import { useCart } from '../context/CartContext';
 import { Breadcrumbs } from '../components/ui/PageHeader';
 import QuantityStepper from '../components/ui/QuantityStepper';
 import ProductCard from '../components/ui/ProductCard';
-import { EmptyState, LoadingBlock } from '../components/ui/States';
+import { EmptyState, ErrorState, LoadingBlock } from '../components/ui/States';
 import { Tabs, TabPanel } from '../components/ui/Tabs';
 import { isWishlisted, toggleWishlistItem } from '../components/ui/ProductCard';
 import api from '../utils/api';
-import { getCurrentCustomer } from '../utils/storage';
+import { getCurrentCustomer, getProducts } from '../utils/storage';
 import './ProductDetails.css';
 
 export default function ProductDetails({ onAddToCart }) {
@@ -32,6 +34,7 @@ export default function ProductDetails({ onAddToCart }) {
   const cart = useCart();
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [product, setProduct] = useState(null);
   const [activeImage, setActiveImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
@@ -39,6 +42,7 @@ export default function ProductDetails({ onAddToCart }) {
   const [wished, setWished] = useState(false);
   const [tab, setTab] = useState('description');
   const [added, setAdded] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   const customer = getCurrentCustomer();
   const [reviews, setReviews] = useState([]);
@@ -49,23 +53,48 @@ export default function ProductDetails({ onAddToCart }) {
   });
   const [reviewStatus, setReviewStatus] = useState('');
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [related, setRelated] = useState([]);
 
+  /* The product itself always comes from the API. A same-device local cache
+     is offered as an instant preview while the network fetch is in flight —
+     it never substitutes a 404 or errors (server data wins). */
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
-    const t = setTimeout(() => {
-      const found = findProduct(id);
-      setProduct(found);
-      setActiveImage(0);
-      setQuantity(1);
-      setSelectedVariant(found?.variants?.[0] || '');
-      setWished(found ? isWishlisted(found.id) : false);
-      setLoading(false);
-    }, 180);
-    return () => clearTimeout(t);
-  }, [id]);
+    setLoadError(null);
+    setRelated([]);
+
+    const localMatch = getProducts().find((p) => String(p.id) === String(id));
+    if (localMatch) {
+      setProduct(mapServerProduct({ ...localMatch, stockStatus: localMatch.stockStatus || (localMatch.inStock === false ? 'out_of_stock' : 'in_stock'), status: localMatch.status || 'pending' }));
+    } else {
+      setProduct(null);
+    }
+
+    (async () => {
+      try {
+        const data = await api.getProduct(id);
+        if (cancelled) return;
+        const mapped = mapServerProduct(data?.product);
+        setProduct(mapped);
+        setActiveImage(0);
+        setQuantity(1);
+        setSelectedVariant(mapped?.variants?.[0] || null);
+        setWished(mapped ? isWishlisted(mapped.id) : false);
+        setLoading(false);
+      } catch (err) {
+        if (cancelled) return;
+        setProduct(null);
+        setLoadError({ status: err?.status || 0, message: err?.message || 'Could not reach the server' });
+        setLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [id, attempt]);
 
   useEffect(() => {
-    if (!product?.id) return;
+    if (!product?.id || loading) return undefined;
     let cancelled = false;
     api.getReviews({ productId: product.id })
       .then((data) => {
@@ -75,7 +104,17 @@ export default function ProductDetails({ onAddToCart }) {
         if (!cancelled) setReviews([]);
       });
     return () => { cancelled = true; };
-  }, [product?.id]);
+  }, [product?.id, loading]);
+
+  useEffect(() => {
+    if (!product?.id || loading) return undefined;
+    let cancelled = false;
+    (async () => {
+      const res = await fetchRelatedProducts(product.id);
+      if (!cancelled && res.ok) setRelated(res.products);
+    })();
+    return () => { cancelled = true; };
+  }, [product?.id, loading]);
 
   const handleReviewSubmit = async (e) => {
     e.preventDefault();
@@ -110,8 +149,10 @@ export default function ProductDetails({ onAddToCart }) {
     }
   };
 
-  const related = useMemo(() => getRelatedProducts(product, 4), [product]);
-  const category = product ? categories.find((c) => c.slug === product.category) : null;
+  const category = useMemo(
+    () => (product?.category ? { ...categoryDisplayForName(product.category), slug: product.categorySlug } : null),
+    [product]
+  );
   const add = onAddToCart || cart?.add;
   const delivery = getDeliveryMethod('standard') || DELIVERY_METHODS[0];
 
@@ -143,7 +184,7 @@ export default function ProductDetails({ onAddToCart }) {
     }
   };
 
-  if (loading) {
+  if (loading && !product) {
     return (
       <div className="container pdp-loading">
         <Breadcrumbs items={[{ label: 'Shop', to: '/shop' }, { label: 'Loading…' }]} />
@@ -161,13 +202,32 @@ export default function ProductDetails({ onAddToCart }) {
   }
 
   if (!product) {
+    if (loadError && loadError.status !== 404) {
+      return (
+        <section className="section">
+          <div className="container">
+            <ErrorState
+              title={loadError.status === 400 || loadError.status >= 500 ? 'Something went wrong' : 'Product could not be loaded'}
+              text={loadError.message}
+              actions={
+                <>
+                  <button type="button" className="btn btn-primary" onClick={() => setAttempt((n) => n + 1)}>Try again</button>
+                  <Link to="/shop" className="btn btn-ghost">Back to shop</Link>
+                </>
+              }
+            />
+          </div>
+        </section>
+      );
+    }
+
     return (
       <section className="section">
         <div className="container">
           <EmptyState
             icon={<PackageSearch size={30} />}
             title="Product not found"
-            text={`We could not find the product “${id}”. It may have been removed by the seller.`}
+            text={`We could not find the product “${id}”. It may have been removed by the seller or not approved yet.`}
             actions={
               <>
                 <Link to="/shop" className="btn btn-primary">Back to shop</Link>
@@ -180,9 +240,12 @@ export default function ProductDetails({ onAddToCart }) {
     );
   }
 
-  const gallery = product.images && product.images.length ? product.images : [product.image];
+  const gallery = product.images && product.images.length ? product.images : [product.image].filter(Boolean);
   const off = discountPercent(product.price, product.compareAt);
   const specs = product.specs || product.specifications || [];
+  const ratingDisplay = product.rating != null
+    ? Number(product.rating).toFixed(1)
+    : (reviews.length > 0 ? null : 'No ratings yet');
 
   return (
     <>
@@ -197,12 +260,12 @@ export default function ProductDetails({ onAddToCart }) {
             <div className="pdp-main-image">
               {off > 0 && <span className="badge badge-sale pdp-off-badge">{off}% off</span>}
               <img
-                src={gallery[activeImage]}
+                src={gallery[activeImage] || undefined}
                 alt={`${product.title} — image ${activeImage + 1}`}
                 width="720"
                 height="720"
                 onError={(e) => {
-                  const fallback = category?.image || categories[0]?.image;
+                  const fallback = category?.image;
                   if (fallback && e.currentTarget.src !== fallback) e.currentTarget.src = fallback;
                 }}
               />
@@ -226,7 +289,7 @@ export default function ProductDetails({ onAddToCart }) {
                       height="80"
                       loading="lazy"
                       onError={(e) => {
-                        const fallback = category?.image || categories[0]?.image;
+                        const fallback = category?.image;
                         if (fallback && e.currentTarget.src !== fallback) e.currentTarget.src = fallback;
                       }}
                     />
@@ -239,7 +302,7 @@ export default function ProductDetails({ onAddToCart }) {
           {/* ---------- Info ---------- */}
           <div className="pdp-info">
             <div className="pdp-meta-row">
-              <span className="seller-pill"><BadgeCheck size={14} /> {product.seller || 'EcShopping Seller'}</span>
+              <span className="seller-pill"><BadgeCheck size={14} /> {product.seller}</span>
               <button type="button" className="pdp-icon-btn" onClick={handleShare} aria-label="Share this product" title="Share">
                 <Share2 size={17} />
               </button>
@@ -262,16 +325,21 @@ export default function ProductDetails({ onAddToCart }) {
               href="#pdp-tabs"
               onClick={() => setTab('reviews')}
             >
-              <span className="rating-stars">
-                {[0, 1, 2, 3, 4].map((i) => (
-                  <Star key={i} size={15} fill={i < Math.round(product.rating || 0) ? 'currentColor' : 'none'} />
-                ))}
-              </span>
-              <strong>{Number(product.rating || 0).toFixed(1)}</strong>
-                <span>
-                  {reviews.length || product.reviews || 0}{' '}
-                  {(reviews.length || product.reviews || 0) === 1 ? 'rating' : 'ratings'}
-                </span>
+              {ratingDisplay === null ? (
+                null
+              ) : ratingDisplay === 'No ratings yet' ? (
+                <span>No ratings yet</span>
+              ) : (
+                <>
+                  <span className="rating-stars">
+                    {[0, 1, 2, 3, 4].map((i) => (
+                      <Star key={i} size={15} fill={i < Math.round(Number(ratingDisplay)) ? 'currentColor' : 'none'} />
+                    ))}
+                  </span>
+                  <strong>{ratingDisplay}</strong>
+                </>
+              )}
+              {reviews.length > 0 && <span>{reviews.length} {reviews.length === 1 ? 'rating' : 'ratings'}</span>}
             </a>
 
             <div className="pdp-price-block">
@@ -334,7 +402,7 @@ export default function ProductDetails({ onAddToCart }) {
               <p className="notice notice-danger pdp-stock-note">This item is currently out of stock.</p>
             ) : (
               <p className="notice notice-success pdp-stock-note">
-                <strong>In stock</strong> · Dispatched within 24 hours by {product.seller || 'the seller'}.
+                <strong>In stock</strong> · Dispatched by {product.seller}.
               </p>
             )}
 
@@ -363,7 +431,7 @@ export default function ProductDetails({ onAddToCart }) {
               <li>
                 <MapPin size={17} />
                 <span>
-                  <strong>Sold by {product.seller || 'EcShopping Seller'}</strong>
+                  <strong>Sold by {product.seller}</strong>
                   <small>Identity-verified marketplace seller</small>
                 </span>
               </li>
@@ -379,7 +447,7 @@ export default function ProductDetails({ onAddToCart }) {
             tabs={[
               { id: 'description', label: 'Description' },
               { id: 'specs', label: 'Specifications' },
-              { id: 'reviews', label: 'Reviews' }
+              { id: 'reviews', label: reviews.length > 0 ? `Reviews (${reviews.length})` : 'Reviews' }
             ]}
             active={tab}
             onChange={setTab}
@@ -388,7 +456,7 @@ export default function ProductDetails({ onAddToCart }) {
 
           <TabPanel active={tab} id="description">
             <div className="prose pdp-panel">
-              <p>{product.description}</p>
+              <p>{product.description || 'The seller has not added a description for this product yet.'}</p>
               {product.highlights && product.highlights.length > 0 && (
                 <ul>
                   {product.highlights.map((point) => (

@@ -25,11 +25,11 @@ import {
   PackageCheck,
   PackageX
 } from 'lucide-react';
-import { 
-  getProducts, 
-  deleteProduct, 
-  updateProduct, 
-  toggleProductStock,
+import api from '../../utils/api';
+import {
+  getProducts,
+  deleteProduct,
+  updateProduct,
   syncProductsFromServer
 } from '../../utils/storage';
 import './AllProducts.css';
@@ -52,6 +52,9 @@ export default function AllProducts({ vendor, onProductsUpdated }) {
   const [previewProduct, setPreviewProduct] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
   const [deleteCandidate, setDeleteCandidate] = useState(null);
+  /* Row-level server action bookkeeping: buttons stay honest while a mutation
+   * is in flight and API failures are surfaced instead of silently lost. */
+  const [busyId, setBusyId] = useState(null);
 
   // Toast state
   const [toast, setToast] = useState(null);
@@ -79,7 +82,8 @@ export default function AllProducts({ vendor, onProductsUpdated }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      await syncProductsFromServer();
+      // Vendor token widens the sync to the vendor's own pending listings.
+      await syncProductsFromServer('vendor');
       if (!cancelled) loadVendorProducts();
     })();
     return () => { cancelled = true; };
@@ -89,44 +93,74 @@ export default function AllProducts({ vendor, onProductsUpdated }) {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-        const res = await fetch(`${apiUrl}/api/categories?vendorId=${vendor?.id || ''}`);
-        const data = await res.json();
-        if (data.success && Array.isArray(data.categories)) {
+        const data = await api.getCategories({ vendorId: vendor?.id || '' });
+        if (data?.success && Array.isArray(data.categories)) {
           setCategories(data.categories);
+          return;
         }
+        setCategories(distinctFromProducts());
       } catch {
         // Fallback to distinct product categories
-        const distinct = [...new Set(products.map(p => p.category).filter(Boolean))];
-        setCategories(distinct.map(name => ({ id: name, name })));
+        setCategories(distinctFromProducts());
       }
+    };
+    const distinctFromProducts = () => {
+      const all = getProducts();
+      const scoped = all.filter(p => p.vendorId === vendor?.id);
+      return [...new Set(scoped.map(p => p.category).filter(Boolean))].map(name => ({ id: name, name }));
     };
     fetchCategories();
   }, [vendor?.id, products.length]);
 
-  // Toggle in-stock / out-of-stock directly from UI
+  // Toggle in-stock / out-of-stock — server-confirmed before the UI believes it.
   const handleToggleStock = (product) => {
-    const updated = toggleProductStock(product.id);
-    if (updated) {
+    if (!vendor || busyId === product.id) return;
+    if (!product) return;
+    // Only the server's stockStatus drives availability; rewrite it there.
+    const serverStatus = product.stockStatus === 'out_of_stock'
+      ? 'in_stock'
+      : product.stockStatus === 'in_stock' ? 'out_of_stock'
+        : (product.inStock === false ? 'in_stock' : 'out_of_stock');
+
+    setBusyId(product.id);
+    (async () => {
+      try {
+        await api.updateProduct(product.id, { stockStatus: serverStatus });
+        updateProduct(product.id, { stockStatus: serverStatus, inStock: serverStatus === 'in_stock' });
+        loadVendorProducts();
+        showToast(`"${product.title || product.name}" marked as ${serverStatus === 'in_stock' ? 'In Stock 🟢' : 'Out of Stock 🔴'}`, 'success');
+      } catch (err) {
+        showToast(err?.message || 'The stock update was not accepted by the server', 'error');
+      } finally {
+        setBusyId(null);
+      }
+    })();
+  };
+
+  // Delete handler — server-confirmed; local cache is only updated afterwards.
+  const confirmDelete = async () => {
+    if (!deleteCandidate || busyId === deleteCandidate.id) return;
+    const candidate = deleteCandidate;
+    setBusyId(candidate.id);
+    try {
+      await api.deleteProduct(candidate.id);
+      deleteProduct(candidate.id);
       loadVendorProducts();
-      const statusText = (updated.stockStatus === 'in_stock' || updated.inStock) ? 'In Stock 🟢' : 'Out of Stock 🔴';
-      showToast(`"${product.title || product.name}" marked as ${statusText}`, 'success');
+      showToast(`Product "${candidate.title || candidate.name}" deleted`, 'success');
+    } catch (err) {
+      showToast(err?.message || 'The server did not confirm the deletion', 'error');
+    } finally {
+      setBusyId(null);
+      setDeleteCandidate(null);
     }
   };
 
-  // Delete handler
-  const confirmDelete = () => {
-    if (!deleteCandidate) return;
-    deleteProduct(deleteCandidate.id);
-    loadVendorProducts();
-    showToast(`Product "${deleteCandidate.title || deleteCandidate.name}" deleted`, 'success');
-    setDeleteCandidate(null);
-  };
-
-  // Edit form save handler
-  const handleSaveEdit = (e) => {
+  // Edit form save handler — server update is awaited first; the local cache
+  // is only mutated after the API accepts the change.
+  const [savingEdit, setSavingEdit] = useState(false);
+  const handleSaveEdit = async (e) => {
     e.preventDefault();
-    if (!editingProduct) return;
+    if (!editingProduct || savingEdit) return;
 
     if (!editingProduct.title?.trim()) {
       showToast('Product title cannot be empty', 'error');
@@ -139,7 +173,7 @@ export default function AllProducts({ vendor, onProductsUpdated }) {
       return;
     }
 
-    const updated = updateProduct(editingProduct.id, {
+    const updates = {
       title: editingProduct.title.trim(),
       name: editingProduct.title.trim(),
       price: price,
@@ -147,14 +181,23 @@ export default function AllProducts({ vendor, onProductsUpdated }) {
       category: editingProduct.category || 'General',
       unit: editingProduct.unit || '1 unit',
       description: editingProduct.description || '',
-      stockStatus: editingProduct.stockStatus || 'in_stock',
-      inStock: editingProduct.stockStatus === 'in_stock'
-    });
+      stockStatus: editingProduct.stockStatus || 'in_stock'
+    };
 
-    if (updated) {
+    setSavingEdit(true);
+    try {
+      await api.updateProduct(editingProduct.id, updates);
+      updateProduct(editingProduct.id, {
+        ...updates,
+        inStock: updates.stockStatus !== 'out_of_stock'
+      });
       loadVendorProducts();
-      showToast(`Product "${updated.title}" updated successfully!`, 'success');
+      showToast(`Product "${updates.title}" updated successfully!`, 'success');
       setEditingProduct(null);
+    } catch (err) {
+      showToast(err?.message || 'The server did not accept the update', 'error');
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -470,10 +513,11 @@ export default function AllProducts({ vendor, onProductsUpdated }) {
 
                       {/* Stock Toggle Switch */}
                       <td>
-                        <button 
-                          type="button" 
+                        <button
+                          type="button"
                           className={`stock-toggle-pill ${isInStock ? 'in-stock' : 'out-of-stock'}`}
                           onClick={() => handleToggleStock(p)}
+                          disabled={busyId === p.id}
                           title="Click to toggle stock status"
                         >
                           <span className="stock-dot"></span>
@@ -543,10 +587,11 @@ export default function AllProducts({ vendor, onProductsUpdated }) {
                       {discountPct}% OFF
                     </span>
                   )}
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     className={`prod-card-stock-badge ${isInStock ? 'in-stock' : 'out-of-stock'}`}
                     onClick={() => handleToggleStock(p)}
+                    disabled={busyId === p.id}
                     title="Click to switch status"
                   >
                     <span className="stock-dot"></span>
@@ -786,9 +831,9 @@ export default function AllProducts({ vendor, onProductsUpdated }) {
               </div>
 
               <div className="modal-footer-actions">
-                <button type="submit" className="modal-save-btn">
-                  <CheckCircle size={16} />
-                  <span>Save Changes</span>
+                <button type="submit" className="modal-save-btn" disabled={savingEdit}>
+                  {savingEdit ? <RotateCcw size={16} className="modal-spin" /> : <CheckCircle size={16} />}
+                  <span>{savingEdit ? 'Saving…' : 'Save Changes'}</span>
                 </button>
                 <button 
                   type="button" 
@@ -815,17 +860,19 @@ export default function AllProducts({ vendor, onProductsUpdated }) {
               Are you sure you want to delete <strong>"{deleteCandidate.title || deleteCandidate.name}"</strong>? This item will be removed from your catalog.
             </p>
             <div className="confirm-actions">
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className="confirm-delete-btn"
                 onClick={confirmDelete}
+                disabled={busyId === deleteCandidate.id}
               >
-                Yes, Delete
+                {busyId === deleteCandidate.id ? 'Deleting…' : 'Yes, Delete'}
               </button>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className="confirm-cancel-btn"
                 onClick={() => setDeleteCandidate(null)}
+                disabled={busyId === deleteCandidate.id}
               >
                 Cancel
               </button>

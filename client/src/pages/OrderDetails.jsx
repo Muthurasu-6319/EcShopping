@@ -2,6 +2,7 @@
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { Package, MapPin, Receipt, Truck, ArrowLeft } from 'lucide-react';
 import { getOrders } from '../utils/storage';
+import { paymentStatusDisplay } from '../utils/orderSync';
 import { formatINR, getDeliveryMethod } from '../utils/pricing';
 import { PageHero } from '../components/ui/PageHeader';
 import { EmptyState } from '../components/ui/States';
@@ -71,7 +72,7 @@ export default function OrderDetails({ loggedInCustomer }) {
         <div className="panel od-head">
           <div className="od-head-main">
             <strong>Reference {order.orderNumber || order.id}</strong>
-            <span>Payment: {PAYMENT_STATUS_LABELS[order.paymentStatus] || '—'} · Delivery: {method.label} ({method.detail})</span>
+            <span>Payment: {paymentStatusDisplay(order, PAYMENT_STATUS_LABELS)} · Delivery: {method.label} ({method.detail})</span>
           </div>
           <div className="od-head-badges">
             <span className={statusBadgeClass(order.status)}>

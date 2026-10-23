@@ -1,53 +1,510 @@
-/* Homepage sections */
+/* Homepage sections — Product-First Marketplace Layout */
 
-/* ---------------- Hero ---------------- */
+/* ---------------- Compact Horizontal Category Navigation (Amazon/Flipkart style) ---------------- */
 
-.hero {
-  position: relative;
-  overflow: hidden;
-  background:
-    radial-gradient(760px 440px at 88% -12%, rgba(230, 169, 60, 0.16), transparent 68%),
-    linear-gradient(180deg, #f7f3e8 0%, var(--paper) 100%);
+.compact-cat-nav {
+  background: var(--surface);
   border-bottom: 1px solid var(--line);
+  padding-block: 8px;
+  position: relative;
+  z-index: 10;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.compact-cat-track {
+  display: flex;
+  align-items: center;
+  gap: clamp(8px, 1.8vw, 20px);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  padding-block: 2px;
+}
+
+.compact-cat-track::-webkit-scrollbar {
+  display: none;
+}
+
+.compact-cat-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: var(--r-pill);
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  text-decoration: none;
   color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.2s var(--ease);
 }
 
-.hero-deco {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
+.compact-cat-item:hover {
+  background: var(--brand-50);
+  border-color: var(--brand-300);
+  color: var(--brand);
 }
 
-.hero-deco-leaf {
-  position: absolute;
-  width: clamp(180px, 26vw, 340px);
-  opacity: 0.26;
-  right: -42px;
-  top: -30px;
-  transform: rotate(8deg);
-  mix-blend-mode: multiply;
+.compact-cat-item.all-categories-pill {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
 }
 
-.hero-blob {
-  position: absolute;
+.compact-cat-item.all-categories-pill:hover {
+  background: var(--brand-600);
+  color: #fff;
+}
+
+.compact-cat-thumb {
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  filter: blur(2px);
+  overflow: hidden;
+  background: #fff;
+  flex-shrink: 0;
 }
 
-.hero-blob-1 {
-  width: 380px;
-  height: 380px;
-  left: -170px;
-  bottom: -190px;
-  background: radial-gradient(circle, rgba(125, 196, 178, 0.3), transparent 70%);
+.compact-cat-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
-.hero-blob-2 {
-  width: 260px;
-  height: 260px;
-  right: 34%;
-  top: -130px;
-  background: radial-gradient(circle, rgba(230, 169, 60, 0.2), transparent 70%);
+.compact-cat-label {
+  line-height: 1;
+}
+
+/* ---------------- Restrained Marketplace Banner (Secondary to shopping) ---------------- */
+
+.compact-mkt-banner {
+  background: linear-gradient(135deg, #0e5c4a 0%, #136a56 50%, #094739 100%);
+  color: #fff;
+  padding-block: clamp(14px, 2vw, 20px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.compact-mkt-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.compact-mkt-copy {
+  max-width: 65ch;
+}
+
+.compact-mkt-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #fef08a;
+  margin-bottom: 3px;
+}
+
+.compact-mkt-copy h2 {
+  font-family: var(--font-display);
+  font-size: clamp(1.15rem, 1rem + 0.8vw, 1.45rem);
+  color: #fff;
+  margin: 0 0 3px;
+  line-height: 1.25;
+}
+
+.compact-mkt-copy p {
+  font-size: 0.84rem;
+  color: rgba(255, 255, 255, 0.85);
+  margin: 0;
+  line-height: 1.35;
+}
+
+.compact-mkt-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.btn-outline-light {
+  background: transparent;
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
+  color: #fff;
+}
+
+.btn-outline-light:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: #fff;
+  color: #fff;
+}
+
+@media (max-width: 768px) {
+  .compact-mkt-inner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .compact-mkt-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+}
+
+/* ---------------- Dense Product Rails & Section Layout ---------------- */
+
+.section-compact {
+  padding-block: clamp(16px, 2.2vw, 26px);
+}
+
+.rail-section {
+  border-bottom: 1px solid var(--line);
+}
+
+.rail-section.tone-accent {
+  background: linear-gradient(180deg, rgba(217, 102, 61, 0.04) 0%, rgba(217, 102, 61, 0.01) 100%);
+  border-top: 1px solid rgba(217, 102, 61, 0.12);
+  border-bottom: 1px solid rgba(217, 102, 61, 0.12);
+}
+
+.rail-head-flex {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.rail-eyebrow {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--brand);
+  margin-bottom: 2px;
+}
+
+.rail-section.tone-accent .rail-eyebrow {
+  color: var(--accent);
+}
+
+.rail-title {
+  font-family: var(--font-display);
+  font-size: clamp(1.2rem, 1.1rem + 0.6vw, 1.55rem);
+  color: var(--ink);
+  margin: 0;
+  line-height: 1.25;
+}
+
+.rail-subtitle {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin: 2px 0 0;
+}
+
+.rail-more-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--brand);
+  padding: 5px 12px;
+  border-radius: var(--r-pill);
+  background: var(--brand-50);
+  border: 1px solid var(--brand-100);
+  white-space: nowrap;
+  transition: all 0.2s var(--ease);
+}
+
+.rail-more-link:hover {
+  background: var(--brand);
+  color: #fff;
+}
+
+/* ---------------- Compact Category Tiles (Amazon/Flipkart style 4-col) ---------------- */
+
+.cat-tiles-section {
+  background: var(--paper-2);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.compact-cat-tiles-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(10px, 1.6vw, 18px);
+}
+
+.compact-tile-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 10px 14px;
+  text-decoration: none;
+  transition: all 0.2s var(--ease);
+  box-shadow: var(--sh-xs);
+}
+
+.compact-tile-card:hover {
+  border-color: var(--brand);
+  transform: translateY(-2px);
+  box-shadow: var(--sh-sm);
+}
+
+.compact-tile-media {
+  width: 50px;
+  height: 50px;
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  background: var(--paper-2);
+  flex-shrink: 0;
+}
+
+.compact-tile-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s var(--ease);
+}
+
+.compact-tile-card:hover .compact-tile-media img {
+  transform: scale(1.08);
+}
+
+.compact-tile-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.compact-tile-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.compact-tile-count {
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+
+@media (max-width: 900px) {
+  .compact-cat-tiles-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ---------------- Compact Trust / Policy Strip (Bottom) ---------------- */
+
+.compact-trust-strip {
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding-block: 16px;
+}
+
+.compact-trust-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.compact-trust-col {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.compact-trust-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--brand-50);
+  color: var(--brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.compact-trust-text h4 {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0 0 2px;
+}
+
+.compact-trust-text p {
+  font-size: 0.74rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .compact-trust-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+}
+
+/* ---------------- Category Retail Grid ---------------- */
+
+.section-head-split {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.section-head-split .eyebrow {
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--brand);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.section-head-split .title {
+  font-family: var(--font-display);
+  font-size: clamp(1.4rem, 1.2rem + 1vw, 1.85rem);
+  color: var(--ink);
+  margin: 0;
+}
+
+.section-head-split .sub {
+  color: var(--muted);
+  font-size: 0.92rem;
+  margin: 4px 0 0;
+}
+
+.retail-view-all-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--brand);
+  padding: 8px 14px;
+  border-radius: var(--r-pill);
+  background: var(--brand-50);
+  border: 1px solid var(--brand-100);
+  transition: all 0.2s var(--ease);
+}
+
+.retail-view-all-link:hover {
+  background: var(--brand);
+  color: #fff;
+}
+
+.cat-retail-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(14px, 2vw, 22px);
+}
+
+.cat-retail-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  box-shadow: var(--sh-xs);
+  transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease), border-color 0.2s var(--ease);
+}
+
+.cat-retail-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--sh-md);
+  border-color: var(--brand-300);
+}
+
+.cat-card-img-wrap {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background: var(--paper-2);
+}
+
+.cat-card-img-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s var(--ease);
+}
+
+.cat-retail-card:hover .cat-card-img-wrap img {
+  transform: scale(1.08);
+}
+
+.cat-card-body {
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.cat-card-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--brand);
+  letter-spacing: 0.06em;
+  margin-bottom: 4px;
+}
+
+.cat-card-title {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0 0 4px;
+}
+
+.cat-card-sub {
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.4;
+  margin: 0 0 12px;
+}
+
+.cat-card-action {
+  margin-top: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--brand);
+}
+
+@media (max-width: 960px) {
+  .cat-retail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 500px) {
+  .cat-retail-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .hero-inner {

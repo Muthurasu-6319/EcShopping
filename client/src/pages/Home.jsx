@@ -1,63 +1,165 @@
+import { useCallback, useEffect, useState } from 'react';
 import {
-  Hero,
-  CategoryGrid,
-  PromoBanners,
-  CollectionsStrip,
-  ConcernGrid,
-  VideoShop,
-  CategoryRails,
-  MarqueeStrip,
+  CompactCategoryNav,
+  CompactMarketplaceBanner,
+  CompactCategoryTiles,
   ProductRail,
-  OrderingSteps,
-  BenefitsGrid,
-  TestimonialsSection,
+  CategoryRails,
+  CompactTrustBar,
   NewsletterCta
 } from '../components/home/HomeSections';
-import { getProductsByTag, getCollectionProducts } from '../data/catalog';
+import { fetchStorefrontCategories, fetchStorefrontProducts } from '../data/storefront';
+
+const RAIL_POOL_LIMIT = 48;
 
 export default function Home({ onAddToCart }) {
-  const bestsellers = getProductsByTag('bestseller');
-  const newArrivals = getProductsByTag('new');
-  const deals = getCollectionProducts('deals');
+  const [state, setState] = useState({
+    loading: true,
+    categoriesError: null,
+    listingsError: null,
+    categories: [],
+    items: [],
+    newArrivals: [],
+    deals: [],
+    rails: [],
+    productsTotal: null,
+    categoriesCount: null,
+    dealsCount: null
+  });
+  const [attempt, setAttempt] = useState(0);
+
+  const load = useCallback(async () => {
+    const results = await Promise.allSettled([
+      fetchStorefrontCategories(),
+      fetchStorefrontProducts({ limit: RAIL_POOL_LIMIT }),
+      fetchStorefrontProducts({ hasDiscount: '1', limit: 8 })
+    ]);
+
+    const [catRes, listRes, dealRes] = results;
+    const categories = catRes.status === 'fulfilled' ? catRes.value : [];
+    const listings = listRes.status === 'fulfilled' ? listRes.value : { ok: false, products: [], total: null };
+    const deals = dealRes.status === 'fulfilled' ? dealRes.value : { ok: false, products: [] };
+
+    const items = listings.ok ? listings.products : [];
+    const rails = categories.map((category) => ({
+      category,
+      items: items.filter((p) => p.categorySlug === category.slug)
+    }));
+
+    setState({
+      loading: false,
+      categoriesError: catRes.status === 'rejected' ? catRes.reason : null,
+      listingsError: listRes.status === 'rejected' || !listings.ok
+        ? (listRes.status === 'rejected' ? listRes.reason : { message: listings.error })
+        : null,
+      categories,
+      items,
+      newArrivals: items.slice(0, 8),
+      deals: deals.ok ? deals.products : [],
+      rails,
+      productsTotal: listRes.status === 'fulfilled' && listings.ok ? listings.total : null,
+      categoriesCount: catRes.status === 'fulfilled' ? categories.length : null,
+      dealsCount: dealRes.status === 'fulfilled' && deals.ok ? deals.total : null
+    });
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (cancelled) return;
+      await load();
+    })();
+    return () => { cancelled = true; };
+  }, [attempt, load]);
+
+  const retry = () => setAttempt((n) => n + 1);
+
+  const { loading, categoriesError, listingsError } = state;
+  const hasDeals = state.deals && state.deals.length > 0;
 
   return (
     <>
-      <Hero />
-      <CategoryGrid />
-      <PromoBanners />
-      <ConcernGrid />
-      <CollectionsStrip />
-      <VideoShop />
+      {/* 3. Compact Horizontal Category Navigation (Amazon/Flipkart bar) */}
+      <CompactCategoryNav
+        categories={state.categories}
+        loading={state.loading}
+      />
+
+      {/* Restrained Marketplace Banner (Secondary to shopping; height <140px) */}
+      <CompactMarketplaceBanner />
+
+      {/* 4. Best Offers / Deals of the Day (First prominent content section) */}
+      {hasDeals ? (
+        <ProductRail
+          eyebrow="⚡ Today's Special Values"
+          title="Best Offers & Deals of the Day"
+          subtitle="Verified seller discounts on genuine organic staples and farm harvests."
+          linkTo="/collection/deals"
+          linkLabel="All Deals"
+          items={state.deals}
+          tone="accent"
+          loading={loading}
+          onAddToCart={onAddToCart}
+        />
+      ) : (
+        <ProductRail
+          eyebrow="Featured Selections"
+          title="Featured Farm Products"
+          subtitle="Wholesome everyday organic essentials directly from local farms."
+          linkTo="/shop"
+          linkLabel="View All"
+          items={state.items.slice(0, 4)}
+          tone="plain"
+          loading={loading}
+          onAddToCart={onAddToCart}
+        />
+      )}
+
+      {/* 5. Best Sellers — Dense horizontal product rail */}
       <ProductRail
-        eyebrow="Bestsellers"
-        title="What customers reorder every week"
-        subtitle="Consistent quality is why these keep coming back."
-        linkTo="/collection/bestsellers"
-        items={bestsellers}
+        eyebrow="Customer Favorites"
+        title="Best Sellers & Farm Staples"
+        subtitle="The most frequently re-ordered everyday pantry essentials."
+        linkTo="/shop"
+        linkLabel="Explore All Items"
+        items={state.items.slice(0, 4)}
+        tone="plain"
+        loading={loading}
         onAddToCart={onAddToCart}
       />
-      <OrderingSteps />
+
+      {/* 6. Shop by Category — Compact image tiles */}
+      <CompactCategoryTiles
+        categories={state.categories}
+        loading={loading}
+      />
+
+      {/* 7. New Arrivals — From live catalog */}
       <ProductRail
-        eyebrow="New products"
-        title="Fresh listings from our sellers"
-        subtitle="New produce, pantry items and home goods added this month."
+        eyebrow="Freshly Listed"
+        title="New Arrivals from Local Farms"
+        subtitle="Directly added from verified growers and farm cooperatives this week."
         linkTo="/collection/new-arrivals"
-        items={newArrivals}
+        linkLabel="All New Arrivals"
+        items={state.newArrivals}
+        tone="plain"
+        loading={loading}
         onAddToCart={onAddToCart}
       />
-      <CategoryRails onAddToCart={onAddToCart} />
-      <MarqueeStrip />
-      <ProductRail
-        eyebrow="Limited time deals"
-        title="Lower prices on everyday essentials"
-        subtitle="Limited-period pricing across pantry and fresh combos."
-        linkTo="/collection/deals"
-        items={deals}
-        tone="accent"
+
+      {/* 8. Additional Category-Specific Product Rails & Genuine Offers */}
+      <CategoryRails
+        rails={state.rails}
+        loading={loading && !listingsError && !categoriesError}
+        error={listingsError || categoriesError ? { message: (listingsError || categoriesError).message } : null}
+        onRetry={retry}
         onAddToCart={onAddToCart}
       />
-      <BenefitsGrid />
-      <TestimonialsSection />
+
+      {/* 9. Compact Trust / Policy Section (Bottom Reassurance) */}
+      <CompactTrustBar />
+
+      {/* 10. Existing Newsletter */}
       <NewsletterCta />
     </>
   );

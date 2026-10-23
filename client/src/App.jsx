@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { initStorage, getCurrentCustomer, setCurrentCustomer, syncFromServer } from './utils/storage';
+import { initStorage, getCurrentCustomer, logoutCustomer, saveVendorSession, getCurrentAdmin, logoutAdmin, syncFromServer } from './utils/storage';
 import { CartContext, lineKeyOf } from './context/CartContext';
 import Header from './components/Header';
 import Footer from './components/Footer';
@@ -35,6 +35,7 @@ import Blog from './pages/Blog';
 import BlogPost from './pages/BlogPost';
 import StoreLocator from './pages/StoreLocator';
 import NotFound from './pages/NotFound';
+import PaymentStatus from './pages/PaymentStatus';
 import { CheckCircle } from 'lucide-react';
 import './App.css';
 
@@ -54,7 +55,7 @@ function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
-  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
+  const [adminUser, setAdminUserState] = useState(() => getCurrentAdmin());
   const [vendorUser, setVendorUser] = useState(() => {
     try {
       const saved = localStorage.getItem('ecshopping_current_vendor');
@@ -160,25 +161,36 @@ function App() {
   }, []);
 
   const handleCustomerLogin = (customer) => {
-    setCurrentCustomer(customer);
+    // AuthForm already persisted the profile + token via saveCustomerSession,
+    // so this only mirrors the UI state (fixes P0 ReferenceError regression).
+    setLoggedInCustomerState(customer);
+  };
+
+  const handleCustomerUpdate = (customer) => {
     setLoggedInCustomerState(customer);
   };
 
   const handleCustomerLogout = () => {
-    setCurrentCustomer(null);
+    logoutCustomer();
     setLoggedInCustomerState(null);
   };
 
-  const handleVendorLogin = (vendor) => {
+  const handleVendorLogin = (vendor, token) => {
     setVendorUser(vendor);
-    if (vendor) {
-      localStorage.setItem('ecshopping_current_vendor', JSON.stringify(vendor));
-    } else {
-      localStorage.removeItem('ecshopping_current_vendor');
-    }
+    saveVendorSession(vendor, token);
   };
 
-  const handleVendorLogout = () => handleVendorLogin(null);
+  const handleVendorLogout = () => handleVendorLogin(null, '');
+
+  const handleAdminLogin = (admin) => {
+    // AdminLogin already persisted the admin profile + token; mirror state.
+    setAdminUserState(admin);
+  };
+
+  const handleAdminLogout = () => {
+    logoutAdmin();
+    setAdminUserState(null);
+  };
 
   const cartCount = cartItems.reduce((total, item) => total + item.quantity, 0);
 
@@ -208,10 +220,10 @@ function App() {
             <Route
               path="/admin/*"
               element={
-                isAdminLoggedIn ? (
-                  <AdminDashboard onLogout={() => setIsAdminLoggedIn(false)} />
+                adminUser ? (
+                  <AdminDashboard admin={adminUser} onLogout={handleAdminLogout} />
                 ) : (
-                  <AdminLogin onLogin={() => setIsAdminLoggedIn(true)} />
+                  <AdminLogin onLogin={handleAdminLogin} />
                 )
               }
             />
@@ -278,6 +290,7 @@ function App() {
                         element={
                           <CustomerProfile
                             loggedInCustomer={loggedInCustomer}
+                            onCustomerUpdate={handleCustomerUpdate}
                             onLogout={handleCustomerLogout}
                             onOpenLogin={() => setLoginOpen(true)}
                           />
@@ -306,6 +319,10 @@ function App() {
                       <Route path="/blog" element={<Blog />} />
                       <Route path="/blog/:slug" element={<BlogPost />} />
                       <Route path="/store-locator" element={<StoreLocator />} />
+                      <Route
+                        path="/payment/phonepe/return"
+                        element={<PaymentStatus />}
+                      />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </main>

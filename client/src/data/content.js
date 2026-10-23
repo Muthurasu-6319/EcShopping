@@ -441,3 +441,121 @@ export const bulkOrderInfo = {
     'Delivery is tracked from your account as with any order.'
   ]
 };
+
+/* ---------------------------------------------------------------------
+   Presentation-only marketing content (Phase 1 storefront decision D5).
+   Imagery and taglines below are visual placeholders keyed by category
+   NAME — the categories themselves always come from the server
+   (GET /api/categories/public). No product data, ratings, sales counts
+   or badges live here.
+   --------------------------------------------------------------------- */
+
+const IMG = 'https://images.unsplash.com/photo-';
+const img = (id, w = 700) => `${IMG}${id}?auto=format&fit=crop&w=${w}&q=80`;
+
+export const DEFAULT_CATEGORY_IMAGE = img('1610832958506-aa56368176cf');
+
+export const categoryDisplay = [
+  { name: 'Fresh Produce', tagline: 'Vegetables, fruits & greens', image: img('1610832958506-aa56368176cf'), blurb: 'Harvested by partner farms and packed the same morning.' },
+  { name: 'Pantry Staples', tagline: 'Rice, oils, spices & flours', image: img('1596040033229-a9821ebd058d'), blurb: 'Cold-pressed oils, stone-ground spices and everyday grains.' },
+  { name: 'Dairy & Eggs', tagline: 'Milk, curd, ghee & eggs', image: img('1528750997573-59b89d56f4f7'), blurb: 'Collected daily from small dairy farms near your city.' },
+  { name: 'Honey & Sweeteners', tagline: 'Wild honey & palm jaggery', image: img('1587049352846-4a222e784d38'), blurb: 'Ethically harvested raw honey, palm jaggery, and unrefined sweeteners.' },
+  { name: 'Livestock', tagline: 'Cattle, sheep & poultry', image: img('1546445317-29f4545e9d53'), blurb: 'Verified native breeds with health records from trusted breeders.' },
+  { name: 'Pets & Birds', tagline: 'Feed, care & accessories', image: img('1552728089-57bdde30beb3'), blurb: 'Nutrition and care essentials for the animals at home.' },
+  { name: 'Home & Lifestyle', tagline: 'Handmade, garden & living', image: img('1485955900006-10f4d324d411'), blurb: 'Handmade goods, gardening kits and slow-living essentials.' }
+];
+
+export function categoryDisplayForName(name) {
+  const key = String(name || '').trim().toLowerCase();
+  if (key) {
+    const found = categoryDisplay.find((c) => c.name.toLowerCase() === key);
+    if (found) return found;
+    return { name: String(name), title: String(name), tagline: '', image: DEFAULT_CATEGORY_IMAGE, blurb: '' };
+  }
+  return { name: '', title: '', tagline: '', image: DEFAULT_CATEGORY_IMAGE, blurb: '' };
+}
+
+/** Copy/imagery for the collection views the server can genuinely back (D2). */
+export const collectionDisplay = {
+  'new-arrivals': {
+    title: 'New Arrivals',
+    subtitle: 'Fresh listings from our sellers, newest first',
+    image: img('1488459716781-31db52582fe9', 1000)
+  },
+  deals: {
+    title: 'Weekend Deals',
+    subtitle: 'Lower prices this week on seller-priced items',
+    image: img('1596040033229-a9821ebd058d', 1000)
+  }
+};
+
+/** Collection slugs that exist as URLs but have no server-data basis yet. */
+export const KNOWN_UNSUPPORTED_COLLECTIONS = [
+  'bestsellers',
+  'special',
+  'combos',
+  'farm-fresh',
+  'weight-gain',
+  'pregnancy-care',
+  'kids-wellness',
+  'diabetes-friendly',
+  'weight-loss',
+  'high-protein'
+];
+
+export const benefits = [
+  { icon: 'Sprout', title: 'Sourced from verified sellers', text: 'Every seller is identity-verified and reviewed before listings go live.' },
+  { icon: 'Truck', title: 'Same-day dispatch', text: 'Orders placed before 4 PM are packed the same day from the nearest hub.' },
+  { icon: 'ShieldCheck', title: 'Quality you can check', text: 'Produce is residue-tested and every listing carries honest specs.' },
+  { icon: 'RotateCcw', title: 'Easy replacements', text: 'Damaged or wrong item? Raise a replacement request within 48 hours.' },
+  { icon: 'IndianRupee', title: 'Transparent pricing', text: 'What you see is what you pay — no hidden handling fees at checkout.' },
+  { icon: 'HeartHandshake', title: 'Fair for sellers too', text: 'Local sellers keep a fairer share of every sale they make.' }
+];
+
+export const testimonials = [
+  { id: 't1', name: 'Priya Raman', location: 'Chennai', text: 'The tomatoes were firm and fresh — picked that morning, exactly as described. Delivery arrived on the second day without any bruising.' },
+  { id: 't2', name: 'Arun Kumar', location: 'Coimbatore', text: 'Genuine forest honey with a rich, floral taste. The jar was sealed well and the seller included a note about the harvest.' },
+  { id: 't3', name: 'Meena Sundaram', location: 'Madurai', text: 'Sona masuri rice that cooks light and fluffy, just like the local mill rice we grew up with. Ordering again for the festive season.' }
+];
+
+export const shopVideos = [
+  {
+    id: 'vid-oil',
+    title: 'How cold-pressed oil is made',
+    poster: img('1611077543781-a96c138b1d98', 900),
+    src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'
+  },
+  {
+    id: 'vid-honey',
+    title: 'Forest honey, straight from the comb',
+    poster: img('1587049352846-4a222e784d38', 900),
+    src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4'
+  },
+  {
+    id: 'vid-farm',
+    title: 'A morning at our partner farms',
+    poster: img('1592924357228-91a4daadcfea', 900),
+    src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4'
+  },
+  {
+    id: 'vid-pasta',
+    title: 'Cooking with millet pasta',
+    poster: img('1542838132-92c53300491e', 900),
+    src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4'
+  }
+];
+
+export const marqueeMessages = [
+  'Farm-fresh listings from local sellers',
+  'Pesticide free',
+  'Premium quality',
+  'Direct from farms',
+  'Free delivery over ₹499',
+  'Every seller identity-verified'
+];
+
+export const announcementMessages = [
+  '⚡ Free delivery across Tamil Nadu on orders above ₹499',
+  '🛡️ 100% Verified independent sellers & direct farm producers',
+  '📦 Cash on Delivery & Secure Online Checkout available'
+];

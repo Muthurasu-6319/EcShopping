@@ -16,7 +16,7 @@ import {
 import brandLogo from '../assets/logo/without-bg-logo.png';
 import AnnouncementBar from './AnnouncementBar';
 import { useCart } from '../context/CartContext';
-import { categories, getCatalogProducts } from '../data/catalog';
+import { useStorefrontCategories, fetchStorefrontProducts } from '../data/storefront';
 import { formatINR, computeTotals } from '../utils/pricing';
 import './Header.css';
 
@@ -24,12 +24,14 @@ export default function Header({ cartCount = 0, loggedInCustomer, onCustomerLogo
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
   const [wishlistCount, setWishlistCount] = useState(0);
   const [scrolled, setScrolled] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
 
   const navigate = useNavigate();
   const searchInputRef = useRef(null);
+  const { categories, loading: categoriesLoading } = useStorefrontCategories();
   const cart = useCart();
   const cartSubtotal = useMemo(
     () => computeTotals({ items: cart?.items || [] }).subtotal,
@@ -77,20 +79,30 @@ export default function Header({ cartCount = 0, loggedInCustomer, onCustomerLogo
     return () => document.removeEventListener('keydown', onKey);
   }, []);
 
-  const suggestions = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (q.length < 2) return [];
-    return getCatalogProducts()
-      .filter((p) => {
-        const haystack = `${p.title} ${p.seller || ''} ${p.category || ''}`.toLowerCase();
-        return haystack.includes(q);
-      })
-      .slice(0, 6);
+  /* Suggestions live-query the server (debounced). They are approved
+     storefront rows only; failures are surfaced as an empty list plus the
+     "see all results" fallback count, never demo data. */
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.length < 2) {
+      setSuggestions([]);
+      return undefined;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      const res = await fetchStorefrontProducts({ search: q, limit: 6 });
+      if (!cancelled) setSuggestions(res.ok ? res.products : []);
+    }, 250);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [searchQuery]);
 
   const closeSearch = () => {
     setSearchOpen(false);
     setSearchQuery('');
+    setSuggestions([]);
   };
 
   const handleSearchSubmit = (e) => {
@@ -126,6 +138,60 @@ export default function Header({ cartCount = 0, loggedInCustomer, onCustomerLogo
             <img src={brandLogo} alt="EcShopping" className="brand-logo-img" />
           </Link>
 
+          {/* Prominent permanent retail search bar on desktop */}
+          <div className="header-primary-search">
+            <form className="primary-search-form" onSubmit={handleSearchSubmit} role="search">
+              <Search size={18} className="search-inline-icon" />
+              <input
+                ref={searchInputRef}
+                type="search"
+                className="primary-search-input"
+                placeholder="Search fresh produce, cold-pressed oils, dairy..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                aria-label="Search products"
+              />
+              <button type="submit" className="primary-search-submit">Search</button>
+            </form>
+
+            {searchQuery.trim().length >= 2 && (
+              <div className="search-suggestions live-dropdown" role="listbox" aria-label="Search suggestions">
+                {suggestions.length === 0 ? (
+                  <p className="suggestion-empty">
+                    No products match “{searchQuery.trim()}”. Try another word.
+                  </p>
+                ) : (
+                  suggestions.map((p) => (
+                    <button
+                      type="button"
+                      key={p.id}
+                      className="suggestion-item"
+                      onClick={() => runSuggestion(p)}
+                      role="option"
+                    >
+                      <img src={p.image} alt="" width="44" height="44" loading="lazy" />
+                      <span className="suggestion-text">
+                        <strong>{p.title}</strong>
+                        <small>{p.seller}</small>
+                      </span>
+                      <span className="suggestion-price">{formatINR(p.price)}</span>
+                    </button>
+                  ))
+                )}
+                <button
+                  type="button"
+                  className="suggestion-all"
+                  onClick={() => {
+                    navigate(`/shop?search=${encodeURIComponent(searchQuery.trim())}`);
+                    setSearchQuery('');
+                  }}
+                >
+                  See all results for “{searchQuery.trim()}”
+                </button>
+              </div>
+            )}
+          </div>
+
           <nav className="desktop-nav" aria-label="Main navigation">
             <NavLink to="/" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')} end>
               Home
@@ -143,7 +209,7 @@ export default function Header({ cartCount = 0, loggedInCustomer, onCustomerLogo
                 aria-expanded={shopOpen}
                 aria-haspopup="true"
               >
-                Shop <ChevronDown size={15} />
+                Categories <ChevronDown size={15} />
               </button>
 
               {shopOpen && (
@@ -174,10 +240,14 @@ export default function Header({ cartCount = 0, loggedInCustomer, onCustomerLogo
                         </span>
                       </Link>
                     ))}
+                    {categoriesLoading && (
+                      <p className="dropdown-item" aria-busy="true">
+                        <small>Loading categories…</small>
+                      </p>
+                    )}
                   </div>
 
                   <div className="dropdown-footer">
-                    <Link to="/collection/bestsellers" onClick={() => setShopOpen(false)}>Bestsellers</Link>
                     <Link to="/collection/new-arrivals" onClick={() => setShopOpen(false)}>New arrivals</Link>
                     <Link to="/collection/deals" onClick={() => setShopOpen(false)}>Weekend deals</Link>
                   </div>
@@ -185,31 +255,13 @@ export default function Header({ cartCount = 0, loggedInCustomer, onCustomerLogo
               )}
             </div>
 
-            <NavLink
-              to="/collection/bestsellers"
-              className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
-            >
-              Best selling <span className="nav-badge nav-badge-hot">HOT</span>
-            </NavLink>
-            <NavLink
-              to="/collection/special"
-              className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
-            >
-              Special <span className="nav-badge nav-badge-best">BEST</span>
-            </NavLink>
-            <NavLink
-              to="/collection/combos"
-              className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
-            >
-              Combo <span className="nav-badge nav-badge-offer">Offers</span>
-            </NavLink>
             <NavLink to="/track-order" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
               Track order
             </NavLink>
           </nav>
 
           <div className="header-actions">
-            <div className="search-action-wrapper">
+            <div className="search-action-wrapper mobile-only-search-btn">
               <button
                 type="button"
                 className={`action-icon-btn ${searchOpen ? 'active' : ''}`}
@@ -365,18 +417,21 @@ export default function Header({ cartCount = 0, loggedInCustomer, onCustomerLogo
             <NavLink to="/shop" className={mobileLinkClass} onClick={closeMobile}>
               All Products
             </NavLink>
-            <NavLink to="/collection/bestsellers" className={mobileLinkClass} onClick={closeMobile}>
-              Best selling <span className="nav-badge nav-badge-hot">HOT</span>
+            <NavLink to="/collection/new-arrivals" className={mobileLinkClass} onClick={closeMobile}>
+              New arrivals
             </NavLink>
-            <NavLink to="/collection/special" className={mobileLinkClass} onClick={closeMobile}>
-              Special <span className="nav-badge nav-badge-best">BEST</span>
-            </NavLink>
-            <NavLink to="/collection/combos" className={mobileLinkClass} onClick={closeMobile}>
-              Combo <span className="nav-badge nav-badge-offer">Offers</span>
+            <NavLink to="/collection/deals" className={mobileLinkClass} onClick={closeMobile}>
+              Weekend deals
             </NavLink>
 
             <p className="mobile-nav-label">Categories</p>
-            {categories.map((c) => (
+            {categoriesLoading && (
+              <p className="mobile-nav-label" aria-busy="true">Loading categories…</p>
+            )}
+            {!categoriesLoading && categories.length === 0 && (
+              <p className="mobile-nav-label">No categories listed yet</p>
+            )}
+            {!categoriesLoading && categories.map((c) => (
               <NavLink key={c.slug} to={`/category/${c.slug}`} className={mobileLinkClass} onClick={closeMobile}>
                 {c.title}
               </NavLink>

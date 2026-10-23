@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, User, Phone, CheckCircle, ArrowRight } from 'lucide-react';
 import vendorLoginImg from '../../assets/login-page/vendor-login.png';
 import api from '../../utils/api';
-import { verifyVendorLogin, addVendor } from '../../utils/storage';
+import { addVendor, saveVendorSession } from '../../utils/storage';
 import '../Login.css';
 
 export default function VendorLogin({ onLogin, initialSignUp = false }) {
@@ -26,7 +26,7 @@ export default function VendorLogin({ onLogin, initialSignUp = false }) {
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Handle Vendor Login (TiDB Cloud backed)
+  // Handle Vendor Login (server-side bcrypt verification via TiDB)
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -34,33 +34,22 @@ export default function VendorLogin({ onLogin, initialSignUp = false }) {
 
     try {
       const data = await api.loginVendor(email.trim(), password);
-      if (data?.success && data.vendor) {
+      if (data?.success && data.vendor && data.token) {
         setSuccessMsg('Login successful! Opening Vendor Panel...');
+        saveVendorSession(data.vendor, data.token);
         setTimeout(() => {
-          onLogin(data.vendor);
+          onLogin(data.vendor, data.token);
           navigate('/vendor');
         }, 500);
         return;
       }
+      setError('Invalid email or password');
     } catch (err) {
-      // Server unreachable or credentials rejected — try any locally cached
-      // vendor, otherwise surface the server's message (e.g. pending/rejected).
-      const cached = verifyVendorLogin(email.trim(), password);
-      if (cached.success) {
-        setSuccessMsg('Login successful! Opening Vendor Panel...');
-        setTimeout(() => {
-          onLogin(cached.vendor);
-          navigate('/vendor');
-        }, 500);
-        return;
-      }
-      setError(err.message || cached.message || 'Invalid email or password');
+      // Server messages cover pending/rejected accounts and auth failures.
+      setError(err.message || 'Invalid email or password');
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setError('Invalid email or password');
-    setLoading(false);
   };
 
   // Handle Vendor Register (TiDB Cloud backed — awaits admin approval)
@@ -212,7 +201,7 @@ export default function VendorLogin({ onLogin, initialSignUp = false }) {
                   <button
                     type="button"
                     className="btn-link"
-                    onClick={() => alert('Please contact the store admin to reset your credentials.')}
+                    onClick={() => setError('Please contact store administrator at admin@ecshopping.local to reset your vendor credentials.')}
                   >
                     Forgot password?
                   </button>

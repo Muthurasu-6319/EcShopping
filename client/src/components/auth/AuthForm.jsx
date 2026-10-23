@@ -1,11 +1,14 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, User, Phone, CheckCircle, ArrowRight, Store } from 'lucide-react';
-import { getCustomers, addCustomer } from '../../utils/storage';
+import api from '../../utils/api';
+import { saveCustomerSession, addCustomer } from '../../utils/storage';
 
 /**
  * Shared customer login / sign-up form.
  * Used by the full-page `/login` route and the header login popup.
+ * Credentials are verified server-side (bcrypt in TiDB) — there is no
+ * local credential store, so this flow works only with a running API.
  */
 export default function AuthForm({ onCustomerLogin, onSuccess, initialMode = 'login', showVendorLink = true }) {
   const navigate = useNavigate();
@@ -39,41 +42,21 @@ export default function AuthForm({ onCustomerLogin, onSuccess, initialMode = 'lo
     setLoading(true);
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-      const res = await fetch(`${apiUrl}/api/auth/user/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: loginEmail.trim(), password: loginPassword })
-      });
-      const data = await res.json();
+      const data = await api.userLogin(loginEmail.trim(), loginPassword);
 
-      if (data.success && data.user) {
+      if (data?.success && data.user && data.token) {
+        saveCustomerSession(data.user, data.token);
+        addCustomer(data.user); // offline cache for the admin customers tab
         onCustomerLogin(data.user);
-        addCustomer(data.user);
         setSuccessMsg('Login successful! Welcome back.');
         setTimeout(finish, 500);
-        return;
-      } else if (data.error) {
-        setError(data.error);
-        setLoading(false);
-        return;
+      } else {
+        setError(data.error || 'Invalid email or password');
       }
     } catch (err) {
-      console.log('Backend API notice:', err.message);
-    }
-
-    const customers = getCustomers();
-    const customer = customers.find(
-      c => c.email.toLowerCase() === loginEmail.trim().toLowerCase() && c.password === loginPassword
-    );
-
-    setLoading(false);
-    if (customer) {
-      onCustomerLogin(customer);
-      setSuccessMsg('Login successful! Welcome back.');
-      setTimeout(finish, 500);
-    } else {
-      setError('Invalid email or password. If you are new, please click "Create Account".');
+      setError(err.message || 'Unable to sign in right now. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -85,56 +68,34 @@ export default function AuthForm({ onCustomerLogin, onSuccess, initialMode = 'lo
       setError('Please fill in all required fields.');
       return;
     }
+    if (signUpPassword.length < 8) {
+      setError('Password must be at least 8 characters long.');
+      return;
+    }
 
     setLoading(true);
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-      const res = await fetch(`${apiUrl}/api/auth/user/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.trim(),
-          email: signUpEmail.trim(),
-          password: signUpPassword,
-          phone: phone.trim()
-        })
+      const data = await api.userRegister({
+        name: name.trim(),
+        email: signUpEmail.trim(),
+        password: signUpPassword,
+        phone: phone.trim()
       });
-      const data = await res.json();
 
-      if (data.success && data.user) {
-        onCustomerLogin(data.user);
+      if (data?.success && data.user && data.token) {
+        saveCustomerSession(data.user, data.token);
         addCustomer(data.user);
+        onCustomerLogin(data.user);
         setSuccessMsg('Account created successfully! Welcome to EcShopping.');
         setTimeout(finish, 600);
-        return;
-      } else if (data.error) {
-        setError(data.error);
-        setLoading(false);
-        return;
+      } else {
+        setError(data.error || 'Could not create the account. Please try again.');
       }
     } catch (err) {
-      console.log('Backend API notice:', err.message);
-    }
-
-    const result = addCustomer({
-      name: name.trim(),
-      email: signUpEmail.trim().toLowerCase(),
-      phone: phone.trim(),
-      password: signUpPassword,
-      address: '',
-      city: '',
-      state: 'TN',
-      postcode: ''
-    });
-
-    setLoading(false);
-    if (result.success) {
-      onCustomerLogin(result.customer);
-      setSuccessMsg('Account created successfully! Welcome to EcShopping.');
-      setTimeout(finish, 600);
-    } else {
-      setError(result.message || 'Email already registered. Please login.');
+      setError(err.message || 'Could not create the account. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -222,7 +183,7 @@ export default function AuthForm({ onCustomerLogin, onSuccess, initialMode = 'lo
               type="button"
               className="btn-link"
               onClick={() => {
-                alert('Please contact support or check your welcome email for credentials.');
+                setError('For account recovery or password resets, please contact support at support@ecshopping.local');
               }}
             >
               Forgot password?

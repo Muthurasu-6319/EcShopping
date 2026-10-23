@@ -90,6 +90,8 @@
 .pay-state.failed p { color: #b23a2d; }
 .pay-state.pending { background: var(--warning-soft); border-color: #f0e0b4; color: #7a5410; }
 .pay-state.pending p { color: #97701f; }
+.pay-state.warning { background: var(--warning-soft); border-color: #f0e0b4; color: #7a5410; }
+.pay-state.warning p { color: #97701f; }
 
 .pay-ref {
   display: inline-block;

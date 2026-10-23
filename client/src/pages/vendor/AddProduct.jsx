@@ -19,7 +19,8 @@ import {
   Cloud,
   Link as LinkIcon
 } from 'lucide-react';
-import { addProduct } from '../../utils/storage';
+import { createProductOnServer } from '../../utils/storage';
+import api from '../../utils/api';
 import './AddProduct.css';
 
 export default function AddProduct({ vendor }) {
@@ -86,14 +87,12 @@ export default function AddProduct({ vendor }) {
     { label: 'Cold-pressed Oil', url: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=600&q=80' }
   ];
 
-  // Fetch available categories from TiDB / local
+  // Fetch available categories from TiDB (vendor token attached by api.js)
   useEffect(() => {
     const fetchCats = async () => {
       try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-        const res = await fetch(`${apiUrl}/api/categories?vendorId=${vendor?.id || ''}`);
-        const data = await res.json();
-        if (data.success && Array.isArray(data.categories) && data.categories.length > 0) {
+        const data = await api.getCategories({ vendorId: vendor?.id || '' });
+        if (data?.success && Array.isArray(data.categories) && data.categories.length > 0) {
           setCategoriesList(data.categories);
           setCategory(data.categories[0].name);
         } else {
@@ -131,17 +130,10 @@ export default function AddProduct({ vendor }) {
 
     setUploading(true);
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-      const formData = new FormData();
-      formData.append('image', file);
-
-      const res = await fetch(`${apiUrl}/api/upload`, {
-        method: 'POST',
-        body: formData
-      });
-
-      const data = await res.json();
-      if (data.success && data.url) {
+      // Vendor token is attached by api.js — the upload endpoint rejects
+      // anonymous or expired sessions.
+      const data = await api.uploadImage(file, 'vendor');
+      if (data && data.success && data.url) {
         setImage(data.url);
         if (data.isFallback) {
           showToast('Image loaded! (Add Cloudinary keys in server/.env for cloud CDN)', 'success');
@@ -149,10 +141,10 @@ export default function AddProduct({ vendor }) {
           showToast('Image successfully uploaded to Cloudinary! ☁️', 'success');
         }
       } else {
-        showToast(data.error || 'Failed to upload image', 'error');
+        showToast((data && data.error) || 'Failed to upload image', 'error');
       }
     } catch (err) {
-      showToast('Image upload failed: ' + err.message, 'error');
+      showToast('Image upload failed: ' + (err.message || 'unknown error'), 'error');
     } finally {
       setUploading(false);
     }
@@ -185,9 +177,13 @@ export default function AddProduct({ vendor }) {
     }
   };
 
-  // Form Submit Handler
-  const handleSubmit = (e) => {
+  // Form Submit Handler — server-authoritative: the product only exists once
+  // the API confirms it (status 'pending' until an admin approves).
+  const [submitting, setSubmitting] = useState(false);
+  const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (submitting) return;
 
     if (!name.trim()) {
       showToast('Please enter product name', 'error');
@@ -207,17 +203,22 @@ export default function AddProduct({ vendor }) {
       price: parsedSelling,
       strikePrice: parsedStrike > 0 ? parsedStrike : null,
       unit: unit,
-      image: image.trim() || 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=600&q=80',
-      stockStatus: stockStatus,
-      inStock: stockStatus === 'in_stock'
+      image: image.trim(),
+      stockStatus: stockStatus
     };
 
-    addProduct(vendor, newProdData);
-    showToast(`Product "${name}" successfully added!`, 'success');
+    setSubmitting(true);
+    const result = await createProductOnServer(vendor, newProdData);
+    setSubmitting(false);
 
-    setTimeout(() => {
-      navigate('/vendor/products');
-    }, 1200);
+    if (result.ok) {
+      showToast(`Product "${name}" submitted — waiting for admin approval`, 'success');
+      setTimeout(() => {
+        navigate('/vendor/products');
+      }, 1200);
+    } else {
+      showToast(result.error || 'Submission failed. Nothing was saved.', 'error');
+    }
   };
 
   return (
@@ -540,9 +541,9 @@ export default function AddProduct({ vendor }) {
 
             {/* Form Actions */}
             <div className="add-prod-actions">
-              <button type="submit" className="add-prod-submit-btn">
-                <PlusCircle size={18} />
-                <span>Publish Product</span>
+              <button type="submit" className="add-prod-submit-btn" disabled={submitting}>
+                {submitting ? <Loader2 size={18} className="add-prod-spinner" /> : <PlusCircle size={18} />}
+                <span>{submitting ? 'Submitting…' : 'Publish Product'}</span>
               </button>
               <button 
                 type="button" 

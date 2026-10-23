@@ -26,6 +26,7 @@ import brandLogoWithBg from '../../assets/logo/logo.png';
 import CategoryManager from './CategoryManager';
 import AddProduct from './AddProduct';
 import AllProducts from './AllProducts';
+import EditProduct from './EditProduct';
 import api from '../../utils/api';
 import { 
   getProducts, 
@@ -107,6 +108,8 @@ export default function VendorDashboard({ vendor, onLogout }) {
   const [orderFilter, setOrderFilter] = useState('all');
   const [reviews, setReviews] = useState([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [editingProductId, setEditingProductId] = useState(null);
+  const [updatingOrderId, setUpdatingOrderId] = useState(null);
 
   // Add Product form state
   const [newProduct, setNewProduct] = useState({
@@ -141,16 +144,18 @@ export default function VendorDashboard({ vendor, onLogout }) {
 
   const loadData = async () => {
     if (!vendor) return;
-    await syncProductsFromServer();
+    // Vendor token: pending listings + this vendor's scoped orders.
+    await syncProductsFromServer('vendor');
     const allProducts = getProducts();
     setProducts(allProducts.filter(p => p.vendorId === vendor.id || (p.soldBy && p.soldBy.toLowerCase() === vendor.name.toLowerCase())));
 
     // Fetch only this vendor's orders from the server (scoped for privacy).
-    const vendorOrders = await syncOrdersFromServer({ vendorId: vendor.id, vendorName: vendor.name });
+    const vendorOrders = await syncOrdersFromServer({ vendorId: vendor.id, vendorName: vendor.name }, 'vendor');
     setOrders(Array.isArray(vendorOrders) ? vendorOrders : getVendorOrders(vendor.id, vendor.name));
   };
 
   useEffect(() => {
+    setEditingProductId(null);
     loadData();
   }, [vendor?.id, activeTab]);
 
@@ -235,9 +240,16 @@ export default function VendorDashboard({ vendor, onLogout }) {
   };
 
   // Handle Order Status Change
-  const handleOrderStatusChange = (orderId, newStatus) => {
+  const handleOrderStatusChange = async (orderId, newStatus) => {
+    setUpdatingOrderId(orderId);
+    try {
+      await api.updateOrderStatus(orderId, newStatus, 'vendor');
+    } catch (err) {
+      console.error('Failed to update order status on server:', err);
+    }
     updateOrderStatus(orderId, newStatus);
-    loadData();
+    await loadData();
+    setUpdatingOrderId(null);
   };
 
   // Handle Save Settings
@@ -284,6 +296,7 @@ export default function VendorDashboard({ vendor, onLogout }) {
             <th>Price</th>
             <th>Stock</th>
             <th>Status</th>
+            <th>Action</th>
           </tr>
         </thead>
         <tbody>
@@ -312,11 +325,31 @@ export default function VendorDashboard({ vendor, onLogout }) {
                   {p.status || 'pending'}
                 </span>
               </td>
+              <td>
+                {['pending', 'rejected'].includes(p.status) && (
+                  <button
+                    type="button"
+                    onClick={() => setEditingProductId(p.id)}
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: '6px',
+                      border: '1px solid #cbd5e1',
+                      background: '#ffffff',
+                      fontSize: '12px',
+                      fontWeight: 500,
+                      color: '#0f172a',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Edit
+                  </button>
+                )}
+              </td>
             </tr>
           ))}
           {list.length === 0 && (
             <tr>
-              <td colSpan="5" style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
+              <td colSpan="6" style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
                 {emptyText}
               </td>
             </tr>
@@ -542,6 +575,18 @@ export default function VendorDashboard({ vendor, onLogout }) {
 
         {/* Content Body based on activeTab */}
         <div className="vendor-content-body">
+          {editingProductId ? (
+            <EditProduct
+              productId={editingProductId}
+              vendor={vendor}
+              onBack={() => setEditingProductId(null)}
+              onSaved={() => {
+                setEditingProductId(null);
+                loadData();
+              }}
+            />
+          ) : (
+            <>
 
           {/* ---------------- 1. DASHBOARD VIEW ---------------- */}
           {activeTab === 'dashboard' && (
@@ -882,6 +927,7 @@ export default function VendorDashboard({ vendor, onLogout }) {
                         <td>
                           <select 
                             value={order.status || 'Processing'} 
+                            disabled={updatingOrderId === order.id}
                             onChange={(e) => handleOrderStatusChange(order.id, e.target.value)}
                             style={{ 
                               padding: '6px 10px', 
@@ -990,6 +1036,8 @@ export default function VendorDashboard({ vendor, onLogout }) {
             </div>
           )}
 
+            </>
+          )}
         </div>
       </main>
     </div>

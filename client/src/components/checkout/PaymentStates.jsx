@@ -3,7 +3,7 @@ import './payment.css';
 
 /**
  * Visual states for the PhonePe handoff.
- * `state`: 'idle' | 'processing' | 'success' | 'failed' | 'pending'
+ * `state`: 'idle' | 'processing' | 'success' | 'failed' | 'pending' | 'warning'
  */
 export default function PaymentStates({ state, message = '', reference = '', onRetry, onCancel }) {
   if (state === 'idle') return null;
@@ -14,7 +14,7 @@ export default function PaymentStates({ state, message = '', reference = '', onR
         <Loader2 size={22} className="spin" />
         <div>
           <strong>Connecting to PhonePe…</strong>
-          <p>Complete the payment in the PhonePe app to confirm your order.</p>
+          <p>Do not close this page — the payment is being confirmed against the gateway.</p>
         </div>
       </div>
     );
@@ -66,6 +66,18 @@ export default function PaymentStates({ state, message = '', reference = '', onR
           <strong>Payment pending</strong>
           <p>{message || 'Awaiting confirmation from PhonePe. Your order will be confirmed once the gateway reports back.'}</p>
           {reference && <span className="pay-ref">Ref: {reference}</span>}
+        </div>
+      </div>
+    );
+  }
+
+  if (state === 'warning') {
+    return (
+      <div className="pay-state warning" role="status" aria-live="polite">
+        <ShieldAlert size={22} />
+        <div>
+          <strong>Status unavailable</strong>
+          <p>{message || 'The payment could not be confirmed right now. Nothing has been charged.'}</p>
         </div>
       </div>
     );

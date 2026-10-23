@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
-import { announcementMessages } from '../data/catalog';
+import { announcementMessages } from '../data/content';
 import './AnnouncementBar.css';
 
 const DISMISS_KEY = 'ecshopping_announcement_dismissed';

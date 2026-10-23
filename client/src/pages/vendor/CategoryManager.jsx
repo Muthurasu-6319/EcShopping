@@ -12,6 +12,7 @@ import {
   Power,
   Layers
 } from 'lucide-react';
+import api from '../../utils/api';
 import './CategoryManager.css';
 
 export default function CategoryManager({ vendor }) {
@@ -36,25 +37,20 @@ export default function CategoryManager({ vendor }) {
     }, 3200);
   };
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
-  // Fetch categories from TiDB Cloud
+  // Fetch categories from TiDB (vendor token attached by api.js)
   const fetchCategories = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/categories?vendorId=${vendor?.id || ''}`);
-      const data = await res.json();
-      if (data.success && Array.isArray(data.categories)) {
+      const data = await api.getCategories({ vendorId: vendor?.id || '' });
+      if (data?.success && Array.isArray(data.categories)) {
         setCategories(data.categories);
-      }
-    } catch (err) {
-      console.log('Error fetching categories:', err.message);
-      try {
-        const local = JSON.parse(localStorage.getItem('ecshopping_categories') || '[]');
-        setCategories(local);
-      } catch {
+      } else {
         setCategories([]);
       }
+    } catch (err) {
+      // Server unreachable — show nothing rather than stale fake data,
+      // but keep the UI usable for retry.
+      setCategories([]);
     } finally {
       setLoading(false);
     }
@@ -77,53 +73,43 @@ export default function CategoryManager({ vendor }) {
     if (editingId) {
       // Update existing category
       try {
-        const res = await fetch(`${API_URL}/api/categories/${editingId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: name.trim(),
-            description: description.trim(),
-            status
-          })
+        const data = await api.updateCategory(editingId, {
+          name: name.trim(),
+          description: description.trim(),
+          status
         });
-        const data = await res.json();
 
-        if (data.success) {
+        if (data?.success) {
           showToast(`Category "${name}" updated successfully!`, 'success');
           resetForm();
           fetchCategories();
         } else {
-          showToast(data.error || 'Failed to update category', 'error');
+          showToast((data && data.error) || 'Failed to update category', 'error');
         }
       } catch (err) {
-        showToast('Connection error: ' + err.message, 'error');
+        showToast(err.message || 'Failed to update category', 'error');
       } finally {
         setSubmitting(false);
       }
     } else {
       // Create new category
       try {
-        const res = await fetch(`${API_URL}/api/categories`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: name.trim(),
-            description: description.trim(),
-            status,
-            vendorId: vendor?.id || null
-          })
+        const data = await api.createCategory({
+          name: name.trim(),
+          description: description.trim(),
+          status,
+          vendorId: vendor?.id || null
         });
-        const data = await res.json();
 
-        if (data.success) {
+        if (data?.success) {
           showToast(`Category "${name}" created successfully!`, 'success');
           resetForm();
           fetchCategories();
         } else {
-          showToast(data.error || 'Failed to create category', 'error');
+          showToast((data && data.error) || 'Failed to create category', 'error');
         }
       } catch (err) {
-        showToast('Connection error: ' + err.message, 'error');
+        showToast(err.message || 'Failed to create category', 'error');
       } finally {
         setSubmitting(false);
       }
@@ -151,41 +137,33 @@ export default function CategoryManager({ vendor }) {
   const handleToggleStatus = async (cat) => {
     const newStatus = cat.status === 'active' ? 'inactive' : 'active';
     try {
-      const res = await fetch(`${API_URL}/api/categories/${cat.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus })
-      });
-      const data = await res.json();
+      const data = await api.updateCategory(cat.id, { status: newStatus });
 
-      if (data.success) {
+      if (data?.success) {
         showToast(`Category status changed to "${newStatus}"`, 'info');
         fetchCategories();
       } else {
-        showToast(data.error || 'Failed to update status', 'error');
+        showToast((data && data.error) || 'Failed to update status', 'error');
       }
     } catch (err) {
-      showToast('Error: ' + err.message, 'error');
+      showToast(err.message || 'Failed to update status', 'error');
     }
   };
 
   // Delete Category
   const handleDelete = async (cat) => {
     try {
-      const res = await fetch(`${API_URL}/api/categories/${cat.id}`, {
-        method: 'DELETE'
-      });
-      const data = await res.json();
+      const data = await api.deleteCategory(cat.id);
 
-      if (data.success) {
+      if (data?.success) {
         showToast(`Category "${cat.name}" deleted successfully!`, 'success');
         if (editingId === cat.id) resetForm();
         fetchCategories();
       } else {
-        showToast(data.error || 'Failed to delete category', 'error');
+        showToast((data && data.error) || 'Failed to delete category', 'error');
       }
     } catch (err) {
-      showToast('Error: ' + err.message, 'error');
+      showToast(err.message || 'Failed to delete category', 'error');
     }
   };
 

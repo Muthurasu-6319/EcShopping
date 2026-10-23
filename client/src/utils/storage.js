@@ -2,12 +2,14 @@
 // products and orders. Reads stay synchronous (from the cache); writes
 // update the cache immediately and push to the server in the background.
 
-import api from './api';
+import api, { authSessions } from './api';
+import { mergeOrderHistory } from './orderSync.js';
 
 const VENDORS_KEY = 'ecshopping_vendors';
 const PRODUCTS_KEY = 'ecshopping_products';
 const CUSTOMERS_KEY = 'ecshopping_customers';
 const ORDERS_KEY = 'ecshopping_orders';
+const CURRENT_ADMIN_KEY = 'ecshopping_current_admin';
 
 // Fire-and-forget server push; never blocks the UI.
 const pushToServer = (operation) => {
@@ -111,15 +113,6 @@ export const deleteVendor = (id) => {
   localStorage.setItem(VENDORS_KEY, JSON.stringify(updated));
 };
 
-export const verifyVendorLogin = (email, password) => {
-  const vendors = getVendors();
-  const vendor = vendors.find(v => v.email === email && v.password === password);
-  if (!vendor) return { success: false, message: 'Invalid credentials' };
-  if (vendor.status === 'pending') return { success: false, message: 'Your account is pending admin approval' };
-  if (vendor.status === 'rejected') return { success: false, message: 'Your account has been rejected' };
-  return { success: true, vendor };
-};
-
 // --- Product Management ---
 
 export const getProducts = () => {
@@ -147,11 +140,34 @@ export const addProduct = (vendor, productData) => {
   return newProduct;
 };
 
+/* Server-authoritative product creation for the vendor portal: the listing
+ * only exists once the API confirms it (server assigns status 'pending' and
+ * owns the identity). Returns { ok: true, product } or { ok: false, error }. */
+export const createProductOnServer = async (vendor, productData) => {
+  if (!vendor?.id) return { ok: false, error: 'Vendor session expired. Please sign in again.' };
+  try {
+    const data = await api.createProduct(productData);
+    if (data?.success && data.product) {
+      const confirmed = { ...normalizeProduct(data.product), serverVerified: true };
+      const products = getProducts();
+      const idx = products.findIndex((p) => String(p.id) === String(confirmed.id));
+      if (idx >= 0) products.splice(idx, 1, confirmed);
+      else products.unshift(confirmed);
+      localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
+      return { ok: true, product: confirmed };
+    }
+    return { ok: false, error: data?.error || 'The server did not confirm the product' };
+  } catch (err) {
+    return { ok: false, error: err?.message || 'Could not reach the server' };
+  }
+};
+
 export const updateProductStatus = (id, status) => {
   const products = getProducts();
   const updated = products.map(p => p.id === id ? { ...p, status } : p);
   localStorage.setItem(PRODUCTS_KEY, JSON.stringify(updated));
   pushToServer(() => api.updateProductStatus(id, status));
+  return updated;
 };
 
 export const deleteProduct = (id) => {
@@ -210,25 +226,83 @@ export const setCurrentCustomer = (customer) => {
   }
 };
 
+export const updateCustomerProfile = (updates) => {
+  const current = getCurrentCustomer();
+  if (current) {
+    const updated = { ...current, ...updates };
+    setCurrentCustomer(updated);
+    return updated;
+  }
+  return null;
+};
+
+/* ---- Session helpers (token-backed) ----
+ * Every login result from the server carries a JWT; these helpers pair the
+ * cached profile with its token so api.js can attach it per role.
+ */
+export const saveCustomerSession = (customer, token) => {
+  setCurrentCustomer(customer);
+  authSessions.set('customer', token || '');
+};
+
+export const logoutCustomer = () => {
+  setCurrentCustomer(null);
+  authSessions.clear('customer');
+};
+
+export const saveVendorSession = (vendor, token) => {
+  if (vendor) {
+    localStorage.setItem('ecshopping_current_vendor', JSON.stringify(vendor));
+    authSessions.set('vendor', token || '');
+  } else {
+    localStorage.removeItem('ecshopping_current_vendor');
+    authSessions.clear('vendor');
+  }
+};
+
+export const logoutVendor = () => saveVendorSession(null, '');
+
+export const saveAdminSession = (admin, token) => {
+  if (admin) {
+    localStorage.setItem(CURRENT_ADMIN_KEY, JSON.stringify(admin));
+    authSessions.set('admin', token || '');
+  } else {
+    localStorage.removeItem(CURRENT_ADMIN_KEY);
+    authSessions.clear('admin');
+  }
+};
+
+export const getCurrentAdmin = () => {
+  try {
+    return JSON.parse(localStorage.getItem(CURRENT_ADMIN_KEY) || 'null');
+  } catch {
+    return null;
+  }
+};
+
+export const logoutAdmin = () => saveAdminSession(null, '');
+
 export const getCustomers = () => {
   return JSON.parse(localStorage.getItem(CUSTOMERS_KEY) || '[]');
 };
 
 export const addCustomer = (customerData) => {
   const customers = getCustomers();
-  
+
   // Prevent duplicate email
   const existing = customers.find(c => c.email.toLowerCase() === customerData.email.toLowerCase());
   if (existing) {
     return { success: false, message: 'Email already exists', customer: existing };
   }
 
+  // Passwords are hashed server-side only; never persist credentials here.
   const newCustomer = {
     ...customerData,
-    id: 'c' + Date.now(),
-    createdAt: new Date().toISOString()
+    id: customerData.id || 'c' + Date.now(),
+    createdAt: customerData.createdAt || new Date().toISOString()
   };
-  
+  delete newCustomer.password;
+
   customers.push(newCustomer);
   localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(customers));
   return { success: true, customer: newCustomer };
@@ -267,37 +341,58 @@ export const getVendorOrders = (vendorId, vendorName) => {
   }));
 };
 
-export const addOrder = (orderData) => {
-  const orders = getOrders();
-  const newOrder = {
-    ...orderData,
-    id: 'ORD-' + Math.floor(100000 + Math.random() * 900000), // e.g. ORD-123456
-    status: 'Processing',
-    date: new Date().toISOString()
-  };
-  orders.unshift(newOrder); // newest first
-  localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
-
-  // Persist the order (routes it to the relevant vendors server-side).
-  pushToServer(() => api.createOrder(newOrder));
-
-  return newOrder;
+export const addOrder = async (orderData) => {
+  // Server-first placement: the server generates the order id and recomputes
+  // all prices/totals/payment state. The confirmed row is stored locally and
+  // is the only copy presented as server-verified.
+  try {
+    const data = await api.createOrder(orderData);
+    if (data?.success && data.order) {
+      const confirmed = { ...normalizeOrder(data.order), serverVerified: true };
+      const orders = getOrders();
+      const existingIdx = orders.findIndex((o) => String(o.id) === String(confirmed.id));
+      if (existingIdx >= 0) orders.splice(existingIdx, 1, confirmed);
+      else orders.unshift(confirmed); // newest first
+      localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
+      return confirmed;
+    }
+    throw new Error((data && data.error) || 'Order was not confirmed by the server');
+  } catch {
+    // Offline fallback: keep an unverified local draft so checkout still
+    // completes. It is flagged serverVerified=false and must never be shown
+    // as paid or server-confirmed (see utils/orderSync.js).
+    let localDraft = {
+      ...orderData,
+      id: 'ORD-' + Math.floor(100000 + Math.random() * 900000),
+      status: 'Processing',
+      date: new Date().toISOString(),
+      serverVerified: false
+    };
+    const existing = getOrders();
+    while (existing.some((o) => String(o.id) === String(localDraft.id))) {
+      localDraft = { ...localDraft, id: 'ORD-' + Math.floor(100000 + Math.random() * 900000) };
+    }
+    existing.unshift(localDraft); // newest first
+    localStorage.setItem(ORDERS_KEY, JSON.stringify(existing));
+    return localDraft;
+  }
 };
 
-export const updateOrderStatus = (orderId, newStatus) => {
+export const updateOrderStatus = (orderId, newStatus, role = 'vendor') => {
   const orders = getOrders();
   const updated = orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o);
   localStorage.setItem(ORDERS_KEY, JSON.stringify(updated));
-  pushToServer(() => api.updateOrderStatus(orderId, newStatus));
+  pushToServer(() => api.updateOrderStatus(orderId, newStatus, role));
   return updated;
 };
 
 // --- Server synchronisation ---
 
-/** Pull every product from the server into the local cache. */
-export const syncProductsFromServer = async () => {
+/** Pull every product from the server into the local cache.
+ *  A vendor token widens the result to include that vendor's pending items. */
+export const syncProductsFromServer = async (role) => {
   try {
-    const data = await api.getProducts();
+    const data = await api.getProducts({}, role);
     if (data?.success && Array.isArray(data.products)) {
       const normalized = data.products.map(normalizeProduct);
       localStorage.setItem(PRODUCTS_KEY, JSON.stringify(normalized));
@@ -309,7 +404,7 @@ export const syncProductsFromServer = async () => {
   return getProducts();
 };
 
-/** Pull every vendor from the server into the local cache. */
+/** Pull every vendor from the server into the local cache (admin only). */
 export const syncVendorsFromServer = async () => {
   try {
     const data = await api.getVendors();
@@ -324,29 +419,56 @@ export const syncVendorsFromServer = async () => {
   return getVendors();
 };
 
-/** Pull orders from the server into the local cache (optionally filtered). */
-export const syncOrdersFromServer = async (params = {}) => {
+/** Pull orders from the server and merge them into the local cache.
+ *
+ * Identity rule (see utils/orderSync.js): `id` — rows the server returned
+ * replace local copies with the same id (server data wins); local-only rows
+ * survive empty or partial server responses but are re-flagged
+ * `serverVerified: false`, so a silent local history is never presented as
+ * server-confirmed or paid. Network/auth failures leave the cache untouched.
+ * Server requires any authenticated role; callers pass the role whose token
+ * should be attached ('customer', 'vendor' or 'admin').
+ *
+ * Returns { ok: true, orders } on success, { ok: false, status, error }
+ * on failure so pages can distinguish loading, auth and network errors.
+ */
+export const syncOrdersFromServerDetailed = async (params = {}, role) => {
   try {
-    const data = await api.getOrders(params);
+    const data = await api.getOrders(params, role);
     if (data?.success && Array.isArray(data.orders)) {
-      const normalized = data.orders.map(normalizeOrder);
+      const serverOrders = data.orders.map(normalizeOrder);
+      let merged = serverOrders;
       if (Object.keys(params).length === 0) {
-        localStorage.setItem(ORDERS_KEY, JSON.stringify(normalized));
+        merged = mergeOrderHistory(serverOrders, getOrders());
+        localStorage.setItem(ORDERS_KEY, JSON.stringify(merged));
       }
-      return normalized;
+      return { ok: true, orders: merged };
     }
+    // Unrecognised payload shape: treat as "no server data", not a failure.
+    return { ok: true, orders: getOrders() };
   } catch (err) {
-    console.warn('[api] order sync skipped:', err.message);
+    return { ok: false, status: err?.status || 0, error: err?.message || 'Could not reach the server' };
   }
-  return getOrders();
 };
 
-/** Refresh vendors, products and orders from the server. */
-export const syncFromServer = async () => {
+/** Backwards-compatible wrapper: returns the order array (detailed result
+ *  is available via syncOrdersFromServerDetailed). */
+export const syncOrdersFromServer = async (params = {}, role) => {
+  const result = await syncOrdersFromServerDetailed(params, role);
+  return result.ok ? result.orders : getOrders();
+};
+
+/** Refresh vendors, products and orders from the server.
+ *  Vendors are admin-scoped; orders use whichever token is present
+ *  (customer -> vendor -> admin) so signed-in visitors stay in sync. */
+export const syncFromServer = async ({ ordersRole } = {}) => {
+  const resolvedOrdersRole =
+    ordersRole ||
+    (authSessions.get('customer') ? 'customer' : authSessions.get('vendor') ? 'vendor' : authSessions.get('admin') ? 'admin' : undefined);
   const [vendors, products, orders] = await Promise.all([
     syncVendorsFromServer(),
     syncProductsFromServer(),
-    syncOrdersFromServer()
+    syncOrdersFromServer({}, resolvedOrdersRole)
   ]);
   return { vendors, products, orders };
 };

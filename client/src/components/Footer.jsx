@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Globe, Mail, Phone, MapPin, Check, ArrowRight } from 'lucide-react';
 import brandLogo from '../assets/logo/without-bg-logo.png';
-import { categories } from '../data/catalog';
+import { useStorefrontCategories } from '../data/storefront';
 import { siteInfo } from '../data/content';
 import './Footer.css';
 
@@ -51,6 +51,8 @@ function NewsletterForm() {
 }
 
 export default function Footer() {
+  const { categories, loading: categoriesLoading } = useStorefrontCategories();
+
   return (
     <footer className="site-footer">
       <div className="footer-main">
@@ -81,10 +83,11 @@ export default function Footer() {
             <h4>Shop</h4>
             <ul>
               <li><Link to="/shop">All products</Link></li>
-              {categories.slice(0, 5).map((c) => (
+              {!categoriesLoading && categories.slice(0, 5).map((c) => (
                 <li key={c.slug}><Link to={`/category/${c.slug}`}>{c.title}</Link></li>
               ))}
-              <li><Link to="/collection/bestsellers">Bestsellers</Link></li>
+              <li><Link to="/collection/new-arrivals">New arrivals</Link></li>
+              <li><Link to="/collection/deals">Weekend deals</Link></li>
             </ul>
           </nav>
 
