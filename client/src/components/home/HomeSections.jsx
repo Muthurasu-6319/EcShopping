@@ -2,8 +2,6 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight,
-  ChevronLeft,
-  ChevronRight,
   Truck,
   ShieldCheck,
   RotateCcw,
@@ -322,18 +320,6 @@ export function CategoryRails({ rails = [], loading = false, error = null, onRet
 export const QuickCategoryRow = CompactCategoryNav;
 export const CategoryGrid = CompactCategoryTiles;
 export const TrustBadgesRow = CompactTrustBar;
-
-const HERO_SLIDES = [
-  {
-    id: 1,
-    badge: 'Direct from Verified Local Farms',
-    title: 'Wood-Pressed Oils & Traditional Grains',
-    subtitle: 'Stone ground and cold-pressed for authentic aroma, wholesome nutrition, and zero chemicals.',
-    image: 'https://images.unsplash.com/photo-1611077543781-a96c138b1d98?auto=format&fit=crop&w=1200&q=80',
-    primaryCta: { label: 'Shop Cold-Pressed Oils', to: '/category/pantry-staples' },
-    secondaryCta: { label: 'Explore All Products', to: '/shop' }
-  }
-];
 
 export function HeroCarousel() {
   return <CompactMarketplaceBanner />;

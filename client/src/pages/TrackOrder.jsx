@@ -1,6 +1,7 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Search, PackageCheck, MapPin, Clock, ArrowRight } from 'lucide-react';
+import api from '../utils/api';
 import { getOrders } from '../utils/storage';
 import { paymentStatusDisplay } from '../utils/orderSync';
 import { getDeliveryMethod } from '../utils/pricing';
@@ -32,7 +33,9 @@ export default function TrackOrder({ loggedInCustomer, onOpenLogin }) {
     }
   })();
 
-  const runSearch = (event) => {
+  const [searching, setSearching] = useState(false);
+
+  const runSearch = async (event) => {
     event.preventDefault();
     const code = query.trim();
     setSearched(true);
@@ -41,9 +44,27 @@ export default function TrackOrder({ loggedInCustomer, onOpenLogin }) {
       setResult(null);
       return;
     }
-    setResult(
-      getOrders().find((o) => String(o.id) === code || String(o.orderNumber) === code) || null
-    );
+    const local = getOrders().find((o) => String(o.id) === code || String(o.orderNumber) === code);
+    if (local) {
+      setResult(local);
+      return;
+    }
+    if (loggedInCustomer) {
+      setSearching(true);
+      try {
+        const res = await api.getOrder(code, 'customer');
+        if (res?.success && res.order) {
+          setResult(res.order);
+          setSearching(false);
+          return;
+        }
+      } catch {
+        // Fall through to null
+      } finally {
+        setSearching(false);
+      }
+    }
+    setResult(null);
   };
 
   const timeline = result ? getTimeline(result) : [];
@@ -68,8 +89,8 @@ export default function TrackOrder({ loggedInCustomer, onOpenLogin }) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          <button type="submit" className="btn btn-primary">
-            <Search size={16} /> Track order
+          <button type="submit" className="btn btn-primary" disabled={searching}>
+            <Search size={16} /> {searching ? 'Searching...' : 'Track order'}
           </button>
         </form>
 
